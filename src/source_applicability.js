@@ -14,6 +14,12 @@ import struct
 import zlib
 import olefile
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(
+        encoding="utf-8",
+        errors="strict"
+    )
+
 p = sys.argv[1]
 
 ole = olefile.OleFileIO(p)
@@ -74,6 +80,12 @@ import sys
 import json
 import zipfile
 from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(
+        encoding="utf-8",
+        errors="strict"
+    )
 
 zip_path = Path(sys.argv[1])
 out_dir = Path(sys.argv[2])
