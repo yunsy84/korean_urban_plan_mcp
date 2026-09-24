@@ -841,7 +841,9 @@ class CanvasFactory {
   }
 }
 
-async function createKoreanWorker() {
+async function createKoreanWorker(
+  psmMode = "3"
+) {
   const worker =
     await createWorker(
       "kor",
@@ -849,7 +851,8 @@ async function createKoreanWorker() {
     );
 
   await worker.setParameters({
-    tessedit_pageseg_mode: "3",
+    tessedit_pageseg_mode:
+      String(psmMode),
     preserve_interword_spaces: "1",
     user_defined_dpi: "300"
   });
@@ -863,7 +866,8 @@ export async function locatePdfEvidence(
     jibun,
     saveMatchedImages = false,
     imageOutputDir = null,
-    scale = 2.5
+    scale = 2.5,
+    ocrPsmModes = ["3"]
   } = {}
 ) {
   if (!jibun) {
@@ -889,20 +893,52 @@ export async function locatePdfEvidence(
   const variants =
     normalizeJibunVariants(jibun);
 
-  const worker =
-    await createKoreanWorker();
+  const normalizedPsmModes =
+    [
+      ...new Set(
+        (
+          Array.isArray(
+            ocrPsmModes
+          )
+            ? ocrPsmModes
+            : [ocrPsmModes]
+        )
+          .map(
+            (value) =>
+              String(value).trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+
+  if (
+    normalizedPsmModes.length === 0
+  ) {
+    normalizedPsmModes.push("3");
+  }
 
   const canvasFactory =
     new CanvasFactory();
 
-  const pages = [];
+  const pagesByPsm = new Map();
 
-  try {
-    for (
-      let pageNo = 1;
-      pageNo <= pdf.numPages;
-      pageNo += 1
-    ) {
+  for (
+    const psmMode
+    of normalizedPsmModes
+  ) {
+    const worker =
+      await createKoreanWorker(
+        psmMode
+      );
+
+    const pages = [];
+
+    try {
+      for (
+        let pageNo = 1;
+        pageNo <= pdf.numPages;
+        pageNo += 1
+      ) {
       const page =
         await pdf.getPage(pageNo);
 
@@ -1032,8 +1068,71 @@ export async function locatePdfEvidence(
         page.cleanup();
       }
     }
-  } finally {
-    await worker.terminate();
+
+    pagesByPsm.set(
+      psmMode,
+      pages
+    );
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  let pages =
+    pagesByPsm.get(
+      normalizedPsmModes[0]
+    ) || [];
+
+  if (
+    pages.every(
+      (page) =>
+        page.jibunHits.length === 0
+    ) &&
+    normalizedPsmModes.length > 1
+  ) {
+    const fallbackPages = [];
+
+    for (
+      let pageNo = 1;
+      pageNo <= pdf.numPages;
+      pageNo += 1
+    ) {
+      const candidates =
+        normalizedPsmModes
+          .map(
+            (psmMode) =>
+              pagesByPsm.get(
+                psmMode
+              )?.find(
+                (page) =>
+                  page.page === pageNo
+              )
+          )
+          .filter(Boolean);
+
+      const best =
+        candidates.sort(
+          (a, b) => {
+            const aScore =
+              (a.jibunHits.length > 0 ? 1000000 : 0) +
+              (a.roles.length > 0 ? 100000 : 0) +
+              a.textChars;
+
+            const bScore =
+              (b.jibunHits.length > 0 ? 1000000 : 0) +
+              (b.roles.length > 0 ? 100000 : 0) +
+              b.textChars;
+
+            return bScore - aScore;
+          }
+        )[0];
+
+      if (best) {
+        fallbackPages.push(best);
+      }
+    }
+
+    pages = fallbackPages;
   }
 
   const normalizedPages =
@@ -1137,6 +1236,7 @@ export async function locatePdfEvidence(
     pageCount: totalPages,
     targetJibun: jibun,
     targetVariants: variants,
+    ocrPsmModes: normalizedPsmModes,
 
     parcelEvidence: {
       pages: parcelPages,
