@@ -1,6 +1,5 @@
 import {
-  buildNoticeDetailUrl,
-  fetchEumDetailPage
+  findEumDetailPages
 } from "./eum_source_client.js";
 
 function decodeHtmlEntities(
@@ -47,14 +46,6 @@ function absoluteUrl(
   }
 
   if (
-    /^javascript:/i.test(
-      decoded
-    )
-  ) {
-    return null;
-  }
-
-  if (
     decoded.startsWith("#")
   ) {
     return null;
@@ -68,6 +59,31 @@ function absoluteUrl(
   } catch {
     return null;
   }
+}
+
+function parseJavascriptDownload(
+  href
+) {
+  const decoded =
+    decodeHtmlEntities(
+      href
+    ).trim();
+
+  const match =
+    /^javascript\s*\\?\s*:\s*download\s*\(\s*(['"])(.*?)\1\s*,\s*(['"])([\s\S]*?)\3\s*\)\s*;?$/i.exec(
+      decoded
+    );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    endpoint:
+      match[2],
+    file:
+      match[4]
+  };
 }
 
 function stripHtml(
@@ -93,6 +109,15 @@ function extractAnchors(
 ) {
   const result = [];
 
+  const source =
+    String(
+      html ?? ""
+    )
+      .replace(
+        /<!--(?:[\s\S]*?)-->/g,
+        ""
+      );
+
   const regex =
     /<a\b([^>]*?)\bhref\s*=\s*(["'])(.*?)\2([^>]*)>([\s\S]*?)<\/a>/gi;
 
@@ -100,13 +125,42 @@ function extractAnchors(
 
   while (
     (match =
-      regex.exec(html)) !==
+      regex.exec(source)) !==
     null
   ) {
+    const rawHref =
+      decodeHtmlEntities(
+        match[3]
+      ).trim();
+
+    const download =
+      parseJavascriptDownload(
+        rawHref
+      );
+
+    if (download) {
+      result.push({
+        href:
+          null,
+
+        download,
+
+        text:
+          stripHtml(
+            match[5]
+          ),
+
+        attrs:
+          `${match[1]} ${match[4]}`
+      });
+
+      continue;
+    }
+
     const href =
       absoluteUrl(
         baseUrl,
-        match[3]
+        rawHref
       );
 
     if (!href) {
@@ -115,6 +169,9 @@ function extractAnchors(
 
     result.push({
       href,
+
+      download:
+        null,
 
       text:
         stripHtml(
@@ -175,7 +232,10 @@ function classifyAttachment(
 
 export function extractAttachmentCandidates(
   html,
-  baseUrl
+  baseUrl,
+  {
+    cookie = ""
+  } = {}
 ) {
   const anchors =
     extractAnchors(
@@ -187,44 +247,139 @@ export function extractAttachmentCandidates(
   const seen =
     new Set();
 
+  let detailSeq =
+    null;
+
+  try {
+    detailSeq =
+      new URL(
+        baseUrl
+      ).searchParams.get(
+        "seq"
+      );
+  } catch {
+    detailSeq =
+      null;
+  }
+
   for (
     const anchor
     of anchors
   ) {
-    const isDownload =
-      /DownloadBig\.jsp/i.test(
-        anchor.href
-      ) ||
-      /DownloadZip\.jsp/i.test(
-        anchor.href
-      ) ||
-      /\/download(?:\b|\?)/i.test(
-        anchor.href
-      ) ||
-      /\.(pdf|jpe?g|png|gif|bmp|webp|zip)(?:[?#]|$)/i.test(
-        anchor.href
+    let url =
+      anchor.href;
+
+    let kindTarget =
+      anchor.href ||
+      "";
+
+    let request =
+      null;
+
+    if (
+      anchor.download
+    ) {
+      url =
+        absoluteUrl(
+          baseUrl,
+          anchor.download.endpoint
+        );
+
+      if (!url) {
+        continue;
+      }
+
+      kindTarget =
+        anchor.download.file;
+
+      const form =
+        new URLSearchParams();
+
+      form.set(
+        "gosi",
+        "Y"
       );
 
-    if (!isDownload) {
+      if (detailSeq) {
+        form.set(
+          "seq",
+          detailSeq
+        );
+      }
+
+      form.set(
+        "file",
+        anchor.download.file
+      );
+
+      request = {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/x-www-form-urlencoded",
+
+          Origin:
+            "https://www.eum.go.kr",
+
+          Referer:
+            baseUrl,
+
+          ...(cookie
+            ? {
+                Cookie:
+                  cookie
+              }
+            : {})
+        },
+
+        body:
+          form.toString()
+      };
+    }
+
+    const isDownload =
+      Boolean(
+        anchor.download
+      ) ||
+      /DownloadBig\.jsp/i.test(
+        anchor.href || ""
+      ) ||
+      /DownloadZip\.jsp/i.test(
+        anchor.href || ""
+      ) ||
+      /\/download(?:\b|\?)/i.test(
+        anchor.href || ""
+      ) ||
+      /\.(pdf|jpe?g|png|gif|bmp|webp|zip)(?:[?#]|$)/i.test(
+        anchor.href || ""
+      ) ||
+      /\.(pdf|jpe?g|png|gif|bmp|webp|zip)\b/i.test(
+        anchor.text || ""
+      );
+
+    if (!isDownload || !url) {
       continue;
     }
 
+    const key =
+      request
+        ? `POST|${url}|${anchor.download.file}`
+        : `GET|${url}`;
+
     if (
-      seen.has(
-        anchor.href
-      )
+      seen.has(key)
     ) {
       continue;
     }
 
-    seen.add(
-      anchor.href
-    );
+    seen.add(key);
 
     result.push({
       kind:
         classifyAttachment(
-          anchor.href,
+          kindTarget,
           anchor.text
         ),
 
@@ -232,8 +387,14 @@ export function extractAttachmentCandidates(
         anchor.text ||
         null,
 
-      url:
-        anchor.href
+      url,
+
+      ...(request
+        ? {
+            _download:
+              request
+          }
+        : {})
     });
   }
 
@@ -243,21 +404,83 @@ export function extractAttachmentCandidates(
 export async function getNoticeDetail(
   notice
 ) {
-  const detailUrl =
-    buildNoticeDetailUrl(
+  const discovered =
+    await findEumDetailPages(
       notice
     );
 
-  const page =
-    await fetchEumDetailPage(
-      detailUrl
+  const details =
+    Array.isArray(
+      discovered?.details
+    )
+      ? discovered.details
+      : [];
+
+  if (
+    details.length === 0
+  ) {
+    throw new Error(
+      "EUM detail seq was not discovered for notice " +
+      String(
+        notice?.notice_code ??
+        notice?.notice_no ??
+        ""
+      ) +
+      ". " +
+      "The detail seq must come from the EUM gosi list; " +
+      "it must not be derived from wtnnc_cd."
     );
+  }
 
   const attachments =
-    extractAttachmentCandidates(
-      page.html,
-      detailUrl
-    );
+    [];
+
+  const seen =
+    new Set();
+
+  for (
+    const page
+    of details
+  ) {
+    const found =
+      extractAttachmentCandidates(
+        page.html,
+        page.url,
+        {
+          cookie:
+            page.cookie
+        }
+      );
+
+    for (
+      const attachment
+      of found
+    ) {
+      const key =
+        attachment._download
+          ? (
+              "POST|" +
+              attachment.url +
+              "|" +
+              attachment._download.body
+            )
+          : (
+              "GET|" +
+              attachment.url
+            );
+
+      if (
+        seen.has(key)
+      ) {
+        continue;
+      }
+
+      seen.add(key);
+      attachments.push(
+        attachment
+      );
+    }
+  }
 
   return {
     success:
@@ -297,19 +520,63 @@ export async function getNoticeDetail(
 
     detail: {
       url:
-        detailUrl,
+        details.length === 1
+          ? details[0].url
+          : null,
 
       status:
-        page.status,
+        details.every(
+          item =>
+            item.status >= 200 &&
+            item.status < 400
+        )
+          ? 200
+          : details[0].status,
 
       contentType:
-        page.contentType,
+        details[0].contentType,
 
       encoding:
-        page.encoding,
+        details[0].encoding,
 
       bytes:
-        page.bytes
+        details.reduce(
+          (sum, item) =>
+            sum +
+            Number(
+              item.bytes || 0
+            ),
+          0
+        ),
+
+      seqs:
+        details.map(
+          item =>
+            item.seq
+        ),
+
+      sources:
+        details.map(
+          item => ({
+            seq:
+              item.seq,
+
+            url:
+              item.url,
+
+            status:
+              item.status,
+
+            contentType:
+              item.contentType,
+
+            encoding:
+              item.encoding,
+
+            bytes:
+              item.bytes
+          })
+        )
     },
 
     attachments
