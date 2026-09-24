@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import {
   getEumPublicPage,
   callMapPlanPnu,
@@ -13,9 +15,9 @@ import {
 } from "./attachment_store.js";
 
 import {
-  locatePdfEvidence,
-  locateImageEvidence
-} from "./evidence_locator.js";
+  analyzeTextApplicability,
+  buildSourcePackage
+} from "./source_applicability.js";
 
 
 function normalizeJiguInfo(
@@ -716,99 +718,30 @@ export async function analyzeUrbanPlan(
       server
     });
 
-  const evidence = [];
-
-  for (
-    const attachment
-    of source.attachments
-  ) {
-    if (
-      !attachment.filePath
-    ) {
-      evidence.push({
-        source:
-          attachment.displayName,
-
-        kind:
-          attachment.kind,
-
-        status:
-          "download_not_performed"
-      });
-
-      continue;
-    }
-
-    if (
-      attachment.magic ===
-        "pdf" ||
-      attachment.kind ===
-        "pdf"
-    ) {
-      const result =
-        await locatePdfEvidence(
-          attachment.filePath,
-          {
-            jibun,
-            saveMatchedImages,
-            imageOutputDir
-          }
-        );
-
-      evidence.push({
-        ...result,
-
-        sourceAttachment:
-          attachment.displayName
-      });
-
-      continue;
-    }
-
-    if (
-      attachment.magic ===
-        "png" ||
-      attachment.magic ===
-        "jpeg" ||
-      attachment.kind ===
-        "image"
-    ) {
-      const result =
-        await locateImageEvidence(
-          attachment.filePath,
-          {
-            jibun
-          }
-        );
-
-      evidence.push({
-        ...result,
-
-        sourceAttachment:
-          attachment.displayName
-      });
-
-      continue;
-    }
-
-    /*
-     * ZIP은 다운로드된 원본만 확보하고
-     * 내부 내용을 여기서 임의로 요약하지 않는다.
-     */
-    evidence.push({
-      sourceAttachment:
-        attachment.displayName,
-
-      kind:
-        attachment.kind,
-
-      magic:
-        attachment.magic,
-
-      status:
-        "source_file_downloaded"
+  const applicability =
+    await analyzeTextApplicability({
+      pnu,
+      jibun,
+      notice:
+        source.notice,
+      attachments:
+        source.attachments,
+      noticeDir:
+        path.dirname(
+          source.attachments.find(
+            attachment =>
+              attachment.filePath
+          )?.filePath ||
+          ""
+        )
     });
-  }
+
+  const sourcePackage =
+    buildSourcePackage({
+      noticeCode,
+      attachments:
+        source.attachments
+    });
 
   return {
     success:
@@ -835,9 +768,16 @@ export async function analyzeUrbanPlan(
         source.notice.title
     },
 
-    attachments:
-      source.attachments,
+    applicability,
 
-    evidence
+    sourcePackage,
+
+    /*
+     * 원자료는 전체 보존한다.
+     * 오래된 결정도/지형도면 자체를
+     * OCR로 필지 판독해야 한다고 가정하지 않는다.
+     */
+    attachments:
+      source.attachments
   };
 }
