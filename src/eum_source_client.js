@@ -880,7 +880,11 @@ export function buildNoticeDetailUrl(
 
   url.searchParams.set(
     "seq",
-    ""
+    String(
+      notice.seq ??
+      notice.wtnnc_cd ??
+      ""
+    )
   );
 
   url.searchParams.set(
