@@ -89,59 +89,136 @@ function hasNormalized(text, pattern) {
   return normalize(text).includes(normalize(pattern));
 }
 
+function findOriginalIndexForNormalizedMatch(
+  source,
+  normalizedTarget
+) {
+  const target =
+    normalize(
+      normalizedTarget
+    );
+
+  if (!target) {
+    return -1;
+  }
+
+  let normalizedText = "";
+  const originalIndexMap = [];
+
+  for (
+    let i = 0;
+    i < source.length;
+    i += 1
+  ) {
+    const piece =
+      normalize(
+        source[i]
+      );
+
+    if (!piece) {
+      continue;
+    }
+
+    for (
+      let j = 0;
+      j < piece.length;
+      j += 1
+    ) {
+      normalizedText +=
+        piece[j];
+
+      originalIndexMap.push(
+        i
+      );
+    }
+  }
+
+  const normalizedIndex =
+    normalizedText.indexOf(
+      target
+    );
+
+  if (
+    normalizedIndex < 0
+  ) {
+    return -1;
+  }
+
+  return (
+    originalIndexMap[
+      normalizedIndex
+    ] ?? -1
+  );
+}
+
 function makeContextAroundJibun(
   text,
   jibun,
   before = 220,
   after = 320
 ) {
-  const source = compact(text);
-  const normalizedSource = normalize(source);
-  const normalizedTarget = normalize(jibun);
+  const source =
+    compact(
+      text
+    );
 
-  const index = normalizedSource.indexOf(
-    normalizedTarget
-  );
+  const normalizedTarget =
+    normalize(
+      jibun
+    );
 
-  if (index < 0) {
+  const originalIndex =
+    findOriginalIndexForNormalizedMatch(
+      source,
+      normalizedTarget
+    );
+
+  if (
+    originalIndex < 0
+  ) {
     return null;
   }
 
-  let normalizedCount = 0;
-  let originalIndex = 0;
-
-  for (let i = 0; i < source.length; i += 1) {
-    normalizedCount += normalize(source[i]).length;
-
-    if (normalizedCount > index) {
-      originalIndex = i;
-      break;
-    }
-
-    originalIndex = i;
-  }
-
   const start =
-    Math.max(0, originalIndex - before);
+    Math.max(
+      0,
+      originalIndex -
+        before
+    );
 
   const end =
     Math.min(
       source.length,
-      originalIndex + jibun.length + after
+      originalIndex +
+        jibun.length +
+        after
     );
 
-  let snippet = source.slice(start, end);
+  let snippet =
+    source.slice(
+      start,
+      end
+    );
 
-  if (start > 0) {
-    snippet = "..." + snippet;
+  if (
+    start > 0
+  ) {
+    snippet =
+      "..." +
+      snippet;
   }
 
-  if (end < source.length) {
+  if (
+    end <
+    source.length
+  ) {
     snippet += "...";
   }
 
   return {
-    matchedText: jibun,
+    matchedText:
+      jibun,
+
     snippet
   };
 }
@@ -175,49 +252,46 @@ function extractAreaFromParcelSnippet(
     };
   }
 
-  const source = compact(snippet);
-  const normalizedSource = normalize(source);
-  const normalizedTarget = normalize(jibun);
-  const normalizedIndex =
-    normalizedSource.indexOf(normalizedTarget);
+  const source =
+    compact(
+      snippet
+    );
 
-  let localSource = source;
+  const originalIndex =
+    findOriginalIndexForNormalizedMatch(
+      source,
+      jibun
+    );
 
-  if (normalizedIndex >= 0) {
-    let count = 0;
-    let originalIndex = 0;
-
-    for (let i = 0; i < source.length; i += 1) {
-      count += normalize(source[i]).length;
-
-      if (count > normalizedIndex) {
-        originalIndex = i;
-        break;
-      }
-
-      originalIndex = i;
-    }
-
-    localSource = source.slice(originalIndex);
-  }
+  const localSource =
+    originalIndex >= 0
+      ? source.slice(
+          originalIndex
+        )
+      : source;
 
   const valuesPattern =
     /(?:\||｜|\s)+(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)\s*(?:㎡|m²|m2)?\s*(?:\||｜)\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)(?:\s*(?:㎡|m²|m2))?/i;
 
   const valuesMatch =
-    localSource.match(valuesPattern);
+    localSource.match(
+      valuesPattern
+    );
 
-  if (valuesMatch) {
+  if (
+    valuesMatch
+  ) {
     return {
       values: [
         valuesMatch[1],
         valuesMatch[2]
       ],
+
       likelyArea:
-        valuesMatch[1] === valuesMatch[2]
-          ? valuesMatch[1]
-          : valuesMatch[1],
-      raw: valuesMatch[0]
+        valuesMatch[1],
+
+      raw:
+        valuesMatch[0]
     };
   }
 
@@ -226,11 +300,19 @@ function extractAreaFromParcelSnippet(
       /(?:^|\s|\|)(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)\s*(?:㎡|m²|m2)\b/i
     );
 
-  if (unitMatch) {
+  if (
+    unitMatch
+  ) {
     return {
-      values: [unitMatch[1]],
-      likelyArea: unitMatch[1],
-      raw: unitMatch[0]
+      values: [
+        unitMatch[1]
+      ],
+
+      likelyArea:
+        unitMatch[1],
+
+      raw:
+        unitMatch[0]
     };
   }
 
@@ -241,51 +323,137 @@ function extractAreaFromParcelSnippet(
   };
 }
 
-function isGuidelineStartPage(text) {
-  const normalized = normalize(text);
+function hasGuidelineMarker(
+  text
+) {
+  const normalized =
+    normalize(
+      text
+    );
 
   return (
     normalized.includes(
       "지구단위계획시행지침"
-    ) &&
+    ) ||
     (
-      normalized.includes("총칙") ||
-      normalized.includes("목적") ||
-      normalized.includes("제1조") ||
-      normalized.includes("제2조") ||
-      normalized.includes("제3조") ||
-      normalized.includes("변경")
+      normalized.includes(
+        "지구단위계획"
+      ) &&
+      normalized.includes(
+        "시행지침"
+      )
     )
   );
 }
 
-function isDecisionDrawingPage(text) {
-  const normalized = normalize(text);
+function isGuidelineStartPage(
+  text
+) {
+  const normalized =
+    normalize(
+      text
+    );
+
+  if (
+    !hasGuidelineMarker(
+      text
+    )
+  ) {
+    return false;
+  }
+
+  return (
+    normalized.includes("총칙") ||
+    normalized.includes("목적") ||
+    normalized.includes("제1조") ||
+    normalized.includes("제2조") ||
+    normalized.includes("제3조") ||
+    normalized.includes("변경") ||
+    normalized.includes("전문")
+  );
+}
+
+function isDecisionDrawingPage(
+  text
+) {
+  const normalized =
+    normalize(
+      text
+    );
 
   const hasUrbanPlan =
-    normalized.includes("도시관리계획");
+    normalized.includes(
+      "도시관리계획"
+    );
 
   const hasDecision =
-    normalized.includes("결정");
+    normalized.includes(
+      "결정"
+    );
 
   const hasDrawingSuffix =
-    normalized.includes("결정도") ||
-    normalized.includes("기정도") ||
-    normalized.includes("변경도") ||
-    normalized.includes("결정기정도") ||
-    normalized.includes("결정변경도");
+    normalized.includes(
+      "결정도"
+    ) ||
+    normalized.includes(
+      "기정도"
+    ) ||
+    normalized.includes(
+      "변경도"
+    ) ||
+    normalized.includes(
+      "결정기정도"
+    ) ||
+    normalized.includes(
+      "결정변경도"
+    );
+
+  const hasParcelDrawingContext =
+    normalized.includes(
+      "가구및획지"
+    );
 
   const hasMapContext =
-    normalized.includes("지구단위계획") ||
-    normalized.includes("가구및획지") ||
-    normalized.includes("도면");
+    normalized.includes(
+      "지구단위계획"
+    ) ||
+    normalized.includes(
+      "가구및획지"
+    );
+
+  const hasEditionMarker =
+    normalized.includes(
+      "기정"
+    ) ||
+    normalized.includes(
+      "변경"
+    );
+
+  /*
+   * 일반적인 도시관리계획 결정조서는
+   * 제외하고 실제 도면 제목/도면 문맥을
+   * 함께 요구한다.
+   *
+   * OCR에서 "결정도"가 깨지는 경우를 위해
+   * 가구·획지 + 기정/변경 조합도 허용한다.
+   */
+  const drawingMatch =
+    (
+      hasDrawingSuffix &&
+      hasMapContext
+    ) ||
+    (
+      hasParcelDrawingContext &&
+      hasEditionMarker
+    );
 
   return (
     hasUrbanPlan &&
     hasDecision &&
-    hasDrawingSuffix &&
-    hasMapContext &&
-    !normalized.includes("지형도면고시도")
+    drawingMatch &&
+    !normalized.includes(
+      "지형도면고시도"
+    )
   );
 }
 
@@ -529,11 +697,30 @@ function detectSourceMaterials(
   const omittedDrawingPages =
     pages
       .filter((page) =>
+        decisionRange.includes(
+          page.page
+        )
+      )
+      .filter((page) =>
         isOmittedPage(
           page.text,
           [
             "관계도면",
             "도면"
+          ]
+        )
+      )
+      .map((page) => page.page);
+
+  const omittedRelatedMaterialPages =
+    pages
+      .filter((page) =>
+        isOmittedPage(
+          page.text,
+          [
+            "관계도면",
+            "지구단위계획 시행지침",
+            "전문"
           ]
         )
       )
@@ -548,9 +735,8 @@ function detectSourceMaterials(
       keywordPages:
         pages
           .filter((page) =>
-            hasNormalized(
-              page.text,
-              "지구단위계획시행지침"
+            hasGuidelineMarker(
+              page.text
             )
           )
           .map((page) => page.page),
@@ -588,6 +774,11 @@ function detectSourceMaterials(
         terrainPages.length > 0
           ? "first_decision_to_before_first_terrain"
           : "first_decision_to_pdf_end"
+    },
+
+    omissions: {
+      relatedMaterialPages:
+        omittedRelatedMaterialPages
     },
 
     terrainMaps: {
@@ -741,9 +932,8 @@ export async function locatePdfEvidence(
         const roles = [];
 
         if (
-          hasNormalized(
-            text,
-            "지구단위계획시행지침"
+          hasGuidelineMarker(
+            text
           )
         ) {
           roles.push(
@@ -1032,9 +1222,8 @@ export async function locateImageEvidence(
     const roles = [];
 
     if (
-      hasNormalized(
-        text,
-        "지구단위계획시행지침"
+      hasGuidelineMarker(
+        text
       )
     ) {
       roles.push(
