@@ -9,7 +9,7 @@ import {
   createWorker
 } from "tesseract.js";
 
-import pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 const TARGET_ROLE_PATTERNS = {
   implementation_guideline: [
