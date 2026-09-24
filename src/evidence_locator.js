@@ -437,7 +437,19 @@ function isDecisionDrawingPage(
    * OCR에서 "결정도"가 깨지는 경우를 위해
    * 가구·획지 + 기정/변경 조합도 허용한다.
    */
+  const hasExplicitDecisionDrawingTitle =
+    normalized.includes(
+      "도시관리계획결정도"
+    ) ||
+    normalized.includes(
+      "도시관리계획결정기정도"
+    ) ||
+    normalized.includes(
+      "도시관리계획결정변경도"
+    );
+
   const drawingMatch =
+    hasExplicitDecisionDrawingTitle ||
     (
       hasDrawingSuffix &&
       hasMapContext
