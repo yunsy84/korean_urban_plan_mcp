@@ -1,18 +1,88 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeKey, normalizeValue, firstField, normalizeRecord } from "../src/field_matcher.js";
 
-test("field matching is whitespace/case tolerant", () => {
-  assert.equal(normalizeKey(" 지구단위_계획구역 "), "지구단위계획구역");
-  assert.equal(normalizeValue("  ABC  123 "), "ABC123");
-  assert.equal(firstField({ "고시번호 ": "123-4" }, ["고시번호"]), "123-4");
+import {
+  buildSourcePackage
+} from "../src/source_applicability.js";
+
+import {
+  analyzeUrbanPlan
+} from "../src/urban_plan_service.js";
+
+test("source package preserves downloaded attachment metadata", () => {
+  const result =
+    buildSourcePackage({
+      noticeCode:
+        "TEST-NOTICE",
+      attachments: [
+        {
+          displayName:
+            "원자료.pdf",
+          kind:
+            "pdf",
+          filePath:
+            "cache/TEST-NOTICE/001_원자료.pdf",
+          bytes:
+            1234,
+          downloaded:
+            true,
+          cached:
+            false,
+          url:
+            "https://example.invalid/file.pdf"
+        }
+      ]
+    });
+
+  assert.equal(
+    result.noticeCode,
+    "TEST-NOTICE"
+  );
+
+  assert.equal(
+    result.preservedOriginalCount,
+    1
+  );
+
+  assert.equal(
+    result.files[0].displayName,
+    "원자료.pdf"
+  );
+
+  assert.equal(
+    result.files[0].filePath,
+    "cache/TEST-NOTICE/001_원자료.pdf"
+  );
 });
 
-test("generic row normalization does not hardcode a locality", () => {
-  const r = normalizeRecord({ PNU: "1234567890123456789", 구역명: "TEST-PLAN", 고시번호: "TEST-1" }, {
-    pnu: ["PNU"], planName: ["구역명"], noticeNo: ["고시번호"]
-  });
-  assert.equal(r.pnu, "1234567890123456789");
-  assert.equal(r.planName, "TEST-PLAN");
-  assert.equal(r.noticeNo, "TEST-1");
+test("PNU/jibun mismatch is rejected before network access", async () => {
+  await assert.rejects(
+    () =>
+      analyzeUrbanPlan({
+        pnu:
+          "1234567890100123004",
+        jibun:
+          "123-5",
+        noticeCode:
+          "TEST-NOTICE",
+        download:
+          false
+      }),
+    /PNU\/jibun mismatch/
+  );
+});
+
+test("analyze_urban_plan requires jibun for parcel evidence", async () => {
+  await assert.rejects(
+    () =>
+      analyzeUrbanPlan({
+        pnu:
+          "1234567890100123004",
+        noticeCode:
+          "TEST-NOTICE",
+        download:
+          false
+      }),
+    /requires jibun/
+  );
 });
