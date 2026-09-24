@@ -436,48 +436,162 @@ export async function callMapPlanPnu(
   };
 }
 
-export async function callNoticeConnector(
-  items,
+
+async function requestBufferWithFetch(
+  urlString,
   {
-    pageUrl = EUM_PAGE,
-    cookie = ""
+    method = "GET",
+    headers = {},
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxBytes = 512 * 1024 * 1024
   } = {}
 ) {
-  const rawUrl =
-    `${CONNECTOR}` +
-    `?url=${CONNECTOR_API}` +
-    `&json=${JSON.stringify(items)}`;
+  const controller =
+    new AbortController();
 
+  const timer =
+    setTimeout(
+      () => controller.abort(),
+      timeoutMs
+    );
+
+  try {
+    const response =
+      await fetch(
+        urlString,
+        {
+          method,
+          headers,
+          signal:
+            controller.signal,
+          redirect:
+            "follow"
+        }
+      );
+
+    const arrayBuffer =
+      await response.arrayBuffer();
+
+    const source =
+      Buffer.from(
+        arrayBuffer
+      );
+
+    const body =
+      source.length > maxBytes
+        ? source.subarray(
+            0,
+            maxBytes
+          )
+        : source;
+
+    return {
+      status:
+        response.status,
+
+      headers:
+        Object.fromEntries(
+          response.headers.entries()
+        ),
+
+      body,
+
+      truncated:
+        source.length > maxBytes
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function buildConnectorUrl(
+  items
+) {
   const url =
-    new URL(rawUrl);
+    new URL(
+      CONNECTOR
+    );
 
-  const requestUrl =
-    url.toString();
+  url.searchParams.set(
+    "url",
+    CONNECTOR_API
+  );
 
+  url.searchParams.set(
+    "json",
+    JSON.stringify(
+      items
+    )
+  );
+
+  return url.toString();
+}
+
+function buildConnectorHeaders(
+  pageUrl,
+  {
+    cookie = "",
+    origin = false
+  } = {}
+) {
+  const headers = {
+    Accept:
+      "application/json, text/javascript, */*; q=0.01",
+
+    "Content-Type":
+      "application/json",
+
+    Referer:
+      pageUrl,
+
+    "X-Requested-With":
+      "XMLHttpRequest",
+
+    "sec-ch-ua-platform":
+      '"Windows"',
+
+    "sec-ch-ua":
+      '"Google Chrome";v="153", "Not_A Brand";v="8", "Chromium";v="153"',
+
+    "sec-ch-ua-mobile":
+      "?0"
+  };
+
+  if (origin) {
+    headers.Origin =
+      "https://www.eum.go.kr";
+  }
+
+  if (cookie) {
+    headers.Cookie =
+      cookie;
+  }
+
+  return headers;
+}
+
+async function requestConnector(
+  requestUrl,
+  pageUrl,
+  {
+    cookie = "",
+    origin = false,
+    timeoutMs = DEFAULT_TIMEOUT_MS
+  } = {}
+) {
   const response =
-    await requestBuffer(
+    await requestBufferWithFetch(
       requestUrl,
       {
-        headers: {
-          Accept:
-            "application/json, text/javascript, */*; q=0.01",
-
-          "Content-Type":
-            "application/json",
-
-          Referer:
+        headers:
+          buildConnectorHeaders(
             pageUrl,
-
-          "X-Requested-With":
-            "XMLHttpRequest",
-
-          ...(cookie
-            ? {
-                Cookie:
-                  cookie
-              }
-            : {})
-        }
+            {
+              cookie,
+              origin
+            }
+          ),
+        timeoutMs
       }
     );
 
@@ -497,21 +611,6 @@ export async function callNoticeConnector(
       decoded.text
     );
 
-  if (
-    response.status < 200 ||
-    response.status >= 400
-  ) {
-    throw new Error(
-      `UrlConnector HTTP ${response.status}`
-    );
-  }
-
-  if (!json) {
-    throw new Error(
-      "UrlConnector response is not valid JSON."
-    );
-  }
-
   return {
     url:
       requestUrl,
@@ -526,6 +625,114 @@ export async function callNoticeConnector(
 
     json
   };
+}
+
+export async function callNoticeConnector(
+  items,
+  {
+    pageUrl = EUM_PAGE,
+    cookie = "",
+    timeoutMs = DEFAULT_TIMEOUT_MS
+  } = {}
+) {
+  const requestUrl =
+    buildConnectorUrl(
+      items
+    );
+
+  const attempts = [
+    {
+      label:
+        "URLSearchParams + browser headers + no cookie",
+
+      cookie:
+        "",
+
+      origin:
+        false
+    }
+  ];
+
+  if (cookie) {
+    attempts.push({
+      label:
+        "URLSearchParams + browser headers + Origin + session cookie",
+
+      cookie,
+
+      origin:
+        true
+    });
+  }
+
+  attempts.push({
+    label:
+      "URLSearchParams + browser headers + Origin + no cookie",
+
+    cookie:
+      "",
+
+    origin:
+      true
+  });
+
+  let lastFailure =
+    null;
+
+  for (
+    const attempt
+    of attempts
+  ) {
+    try {
+      const result =
+        await requestConnector(
+          requestUrl,
+          pageUrl,
+          {
+            cookie:
+              attempt.cookie,
+
+            origin:
+              attempt.origin,
+
+            timeoutMs
+          }
+        );
+
+      if (
+        result.status >= 200 &&
+        result.status < 400 &&
+        result.json
+      ) {
+        return {
+          ...result,
+
+          attempt:
+            attempt.label
+        };
+      }
+
+      lastFailure =
+        new Error(
+          `UrlConnector HTTP ${result.status}`
+        );
+    } catch (error) {
+      lastFailure =
+        error instanceof Error
+          ? error
+          : new Error(
+              String(error)
+            );
+    }
+  }
+
+  if (lastFailure) {
+    throw lastFailure;
+  }
+
+  throw new Error(
+    "UrlConnector request failed."
+  );
 }
 
 export async function fetchEumDetailPage(
