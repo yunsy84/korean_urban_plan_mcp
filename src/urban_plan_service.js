@@ -56,6 +56,94 @@ function normalizeJiguInfo(
 }
 
 
+function parsePnuParcel(
+  pnu
+) {
+  const value =
+    String(pnu ?? "");
+
+  if (!/^\d{19}$/.test(value)) {
+    throw new Error(
+      "PNU must be exactly 19 digits."
+    );
+  }
+
+  return {
+    mainNo: Number(
+      value.slice(11, 15)
+    ),
+    subNo: Number(
+      value.slice(15, 19)
+    )
+  };
+}
+
+
+function extractJibunParcel(
+  jibun
+) {
+  const source =
+    String(jibun ?? "")
+      .normalize("NFKC")
+      .trim();
+
+  const match =
+    /(\d+)\s*(?:-\s*(\d+))?\s*(?:번지)?$/u.exec(
+      source
+    );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    mainNo: Number(match[1]),
+    subNo: Number(match[2] ?? "0")
+  };
+}
+
+
+function validatePnuJibunConsistency(
+  pnu,
+  jibun
+) {
+  const pnuParcel =
+    parsePnuParcel(pnu);
+
+  const jibunParcel =
+    extractJibunParcel(jibun);
+
+  if (!jibunParcel) {
+    throw new Error(
+      "Jibun does not contain a recognizable parcel number: " +
+      String(jibun)
+    );
+  }
+
+  if (
+    pnuParcel.mainNo !== jibunParcel.mainNo ||
+    pnuParcel.subNo !== jibunParcel.subNo
+  ) {
+    throw new Error(
+      "PNU/jibun mismatch: PNU " +
+      pnu +
+      " encodes parcel " +
+      pnuParcel.mainNo +
+      "-" +
+      pnuParcel.subNo +
+      ", but jibun is " +
+      jibun +
+      ". PNU is the authoritative parcel target."
+    );
+  }
+
+  return {
+    matched: true,
+    pnuParcel,
+    jibunParcel
+  };
+}
+
 function mapFdCode(
   fdCode
 ) {
@@ -703,6 +791,12 @@ export async function analyzeUrbanPlan(
     );
   }
 
+  const targetValidation =
+    validatePnuJibunConsistency(
+      pnu,
+      jibun
+    );
+
   if (!noticeCode) {
     throw new Error(
       "analyze_urban_plan requires noticeCode. First use resolve_urban_plan or get_district_plan_history to identify the notice."
@@ -750,6 +844,8 @@ export async function analyzeUrbanPlan(
     pnu,
 
     jibun,
+
+    targetValidation,
 
     notice: {
       notice_code:
