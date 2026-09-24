@@ -84,7 +84,7 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
   if (existing) {
     const stat = await fs.stat(existing);
     return {
-      ...attachment,
+      ...publicAttachment,
       filePath: existing,
       downloaded: false,
       cached: true,
@@ -92,7 +92,37 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
     };
   }
 
-  const result = await downloadBinary(attachment.url);
+  const internalRequest =
+    attachment?._download || null;
+
+  const publicAttachment = {
+    ...attachment
+  };
+
+  delete publicAttachment._download;
+
+  const result =
+    await downloadBinary(
+      attachment.url,
+      {
+        method:
+          internalRequest?.method ||
+          "GET",
+
+        headers:
+          internalRequest?.headers ||
+          {},
+
+        body:
+          internalRequest?.body ||
+          null,
+
+        referer:
+          internalRequest?.headers?.Referer ||
+          attachment.url
+      }
+    );
+
   const magic = detectMagic(result.body);
   const extension = resolveExtension(magic, result.contentType, attachment.kind);
 
@@ -103,7 +133,7 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
   await fs.writeFile(filePath, result.body);
 
   return {
-    ...attachment,
+    ...publicAttachment,
     filePath,
     downloaded: true,
     cached: false,
