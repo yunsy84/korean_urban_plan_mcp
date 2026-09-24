@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import crypto from "node:crypto";
 
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { locatePdfEvidence } from "./evidence_locator.js";
@@ -346,6 +347,19 @@ function roleFromName(name) {
 
   return "source_document";
 }
+
+async function fileHash(filePath) {
+  const data =
+    await fs.readFile(
+      filePath
+    );
+
+  return crypto
+    .createHash("sha256")
+    .update(data)
+    .digest("hex");
+}
+
 
 function extensionOf(filePath) {
   return path.extname(
@@ -785,6 +799,10 @@ async function analyzeOneTextSource(
           compact(hwp.text).length,
         matched:
           matches.length > 0,
+        matchMethod:
+          matches.length > 0
+            ? "native_text"
+            : null,
         matchedVariants:
           matches,
         matchedPages: [],
@@ -873,6 +891,10 @@ async function analyzeOneTextSource(
         text.length,
       matched:
         matches.length > 0,
+      matchMethod:
+        matches.length > 0
+          ? "native_text"
+          : null,
       matchedVariants:
         matches,
       matchedPages: [],
@@ -976,6 +998,9 @@ export async function analyzeTextApplicability({
     });
   }
 
+  const processedFileHashes =
+    new Map();
+
   for (
     const attachment
     of Array.isArray(
@@ -987,6 +1012,49 @@ export async function analyzeTextApplicability({
     if (!attachment?.filePath) {
       continue;
     }
+
+    const attachmentHash =
+      await fileHash(
+        attachment.filePath
+      );
+
+    if (
+      processedFileHashes.has(
+        attachmentHash
+      )
+    ) {
+      sources.push({
+        fileType:
+          await classifyFile(
+            attachment.filePath,
+            attachment.displayName
+          ),
+        filePath:
+          attachment.filePath,
+        displayName:
+          attachment.displayName,
+        role:
+          roleFromName(
+            attachment.displayName ||
+            attachment.filePath
+          ),
+        duplicateOf:
+          processedFileHashes.get(
+            attachmentHash
+          ),
+        skipped:
+          true,
+        status:
+          "duplicate_source_skipped"
+      });
+
+      continue;
+    }
+
+    processedFileHashes.set(
+      attachmentHash,
+      attachment.filePath
+    );
 
     const kind =
       await classifyFile(
@@ -1041,6 +1109,49 @@ export async function analyzeTextApplicability({
         const entry
         of zipInfo.entries
       ) {
+        const entryHash =
+          await fileHash(
+            entry.path
+          );
+
+        if (
+          processedFileHashes.has(
+            entryHash
+          )
+        ) {
+          sources.push({
+            fileType:
+              entry.kind,
+            filePath:
+              entry.path,
+            displayName:
+              entry.entryName,
+            role:
+              roleFromName(
+                entry.entryName
+              ),
+            duplicateOf:
+              processedFileHashes.get(
+                entryHash
+              ),
+            container:
+              attachment.displayName,
+            entryIndex:
+              entry.entryIndex,
+            skipped:
+              true,
+            status:
+              "duplicate_source_skipped"
+          });
+
+          continue;
+        }
+
+        processedFileHashes.set(
+          entryHash,
+          entry.path
+        );
+
         const result =
           await analyzeOneTextSource(
             entry.path,
