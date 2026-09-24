@@ -267,13 +267,6 @@ export async function getNoticeDetail(
       notice_code:
         notice.notice_code,
 
-      seq:
-        String(
-          notice.seq ??
-          notice.wtnnc_cd ??
-          ""
-        ),
-
       notice_date:
         notice.notice_date,
 
