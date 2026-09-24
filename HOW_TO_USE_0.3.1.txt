@@ -1,0 +1,22 @@
+[korean_urban_plan_mcp v0.3.1 사용법]
+
+1) 기존 C:\AI_BOT_SEO\korean_urban_plan_mcp 폴더는 삭제하지 말고 먼저 백업합니다.
+2) 이 ZIP의 korean_urban_plan_mcp 폴더 내용을 기존 폴더에 덮어씌웁니다.
+3) CMD/PowerShell:
+   cd C:\AI_BOT_SEO\korean_urban_plan_mcp
+   npm install
+   npm run build
+4) 실제 토지이음 공개 웹 연결 검증:
+   node tests/eum_public_probe.js 4413310300111160000
+5) MCP Inspector 검증:
+   npx @modelcontextprotocol/inspector node C:\AI_BOT_SEO\korean_urban_plan_mcp\dist\server.js
+   -> probe_eum_pnu 실행
+   -> pnu = 4413310300111160000
+
+이 버전은 기존 CSV/TXT 인덱스 기능을 삭제하지 않습니다.
+추가된 것은 EUM 공개 웹 검증 기능입니다.
+
+사용하지 않는 것:
+- 119.196.18.3:7070/MapPlan 직접 연결
+- 전국 170MB CSV 자동 다운로드/분석
+- 미확인 endpoint 추정

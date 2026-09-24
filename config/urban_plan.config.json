@@ -1,0 +1,41 @@
+{
+  "dataRoot": "data",
+  "downloadRoot": "downloads",
+  "indexRoot": "index",
+  "datasets": {
+    "district_plan": {
+      "id": "district_plan",
+      "label": "지구단위계획구역",
+      "officialDataPage": "https://www.eum.go.kr/web/op/sv/svItemDet.jsp?currentPageNo=1&dataCd=005&dataTypeCd=CSV&selectType=subject",
+      "formats": ["CSV", "SHP"],
+      "sourceCadence": "monthly",
+      "fieldAliases": {
+        "pnu": ["pnu", "PNU", "필지코드", "필지고유번호"],
+        "planId": ["plan_id", "PLAN_ID", "구역코드", "지구단위계획구역코드", "wtnnc_sn"],
+        "planName": ["plan_name", "PLAN_NAME", "구역명", "지구단위계획구역명", "uname", "name"],
+        "noticeNo": ["notice_no", "NOTICE_NO", "고시번호", "고시번호명", "notice_number"],
+        "noticeDate": ["notice_date", "NOTICE_DATE", "고시일", "지정일", "dyear"],
+        "orgName": ["org_name", "ORG_NAME", "기관명", "organ_nm"],
+        "geometry": ["geometry", "GEOMETRY", "wkt", "WKT", "geom"]
+      }
+    },
+    "notice": {
+      "id": "notice",
+      "label": "고시정보",
+      "officialDataPage": "https://www.eum.go.kr/web/op/sv/svItemList.jsp",
+      "formats": ["CSV API"],
+      "sourceCadence": "monthly",
+      "fieldAliases": {
+        "noticeId": ["notice_id", "NOTICE_ID", "seq", "SEQ", "고시ID"],
+        "noticeNo": ["notice_no", "NOTICE_NO", "고시번호", "notice_number"],
+        "noticeDate": ["notice_date", "NOTICE_DATE", "고시일"],
+        "title": ["title", "TITLE", "제목"],
+        "orgName": ["org_name", "ORG_NAME", "기관명", "organ_nm"],
+        "planId": ["plan_id", "PLAN_ID", "구역코드", "지구단위계획구역코드"],
+        "attachmentUrl": ["attachment_url", "ATTACHMENT_URL", "첨부URL", "파일URL"]
+      },
+      "apiUrlEnv": "EUM_NOTICE_API_URL",
+      "apiKeyEnv": "EUM_NOTICE_API_KEY"
+    }
+  }
+}
