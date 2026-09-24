@@ -20,9 +20,10 @@ const TARGET_ROLE_PATTERNS = {
   decision_drawing: [
     "도시관리계획결정도",
     "도시관리계획 결정도",
+    "도시관리계획결정(기정)도",
     "도시관리계획결정(변경)도",
-    "도시관리계획 결정(변경)도",
-    "결정(변경)도"
+    "도시관리계획 결정(기정)도",
+    "도시관리계획 결정(변경)도"
   ],
 
   terrain_map: [
@@ -31,26 +32,24 @@ const TARGET_ROLE_PATTERNS = {
   ]
 };
 
-function compact(
-  value
-) {
-  return String(
-    value ?? ""
-  )
+const OMISSION_PATTERNS = [
+  "게재생략",
+  "게재 생략"
+];
+
+function compact(value) {
+  return String(value ?? "")
     .normalize("NFKC")
-    .replace(
-      /\s+/g,
-      " "
-    )
+    .replace(/\u00a0/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function normalize(
-  value
-) {
-  return compact(
-    value
-  )
+function normalize(value) {
+  return compact(value)
     .replace(
       /[|｜,，:：.;·ㆍ"'"“”‘’()[\]{}<>《》「」『』\/\\_-]/g,
       ""
@@ -58,262 +57,582 @@ function normalize(
     .toLowerCase();
 }
 
-function normalizeJibunVariants(
-  jibun
-) {
-  const source =
-    compact(
-      jibun
-    );
+function normalizeJibunVariants(jibun) {
+  const source = compact(jibun);
+  const result = new Set();
 
-  const result =
-    new Set();
-
-  result.add(
-    source
-  );
-
-  result.add(
-    normalize(
-      source
-    )
-  );
+  if (source) {
+    result.add(source);
+    result.add(normalize(source));
+  }
 
   const match =
-    /(\d+(?:-\d+)?)\s*(?:번지)?$/u.exec(
-      source
-    );
+    /(\d+(?:-\d+)?)\s*(?:번지)?$/u.exec(source);
 
   if (match) {
-    const number =
-      match[1];
-
+    const number = match[1];
     const prefix =
-      source
-        .slice(
-          0,
-          match.index
-        )
-        .trim();
+      source.slice(0, match.index).trim();
 
     if (prefix) {
-      result.add(
-        `${prefix} ${number}`
-      );
-
-      result.add(
-        `${prefix}${number}`
-      );
-
-      result.add(
-        `${prefix} ${number}번지`
-      );
-
-      result.add(
-        `${prefix}${number}번지`
-      );
+      result.add(prefix + " " + number + "번지");
+      result.add(prefix + number + "번지");
+      result.add(prefix + " " + number);
+      result.add(prefix + number);
     }
   }
 
-  return [
-    ...result
-  ].filter(Boolean);
+  return [...result].filter(Boolean);
 }
 
-function containsPattern(
+function hasNormalized(text, pattern) {
+  return normalize(text).includes(normalize(pattern));
+}
+
+function makeContextAroundJibun(
   text,
-  pattern
+  jibun,
+  before = 220,
+  after = 320
 ) {
-  return normalize(
-    text
-  ).includes(
-    normalize(
-      pattern
-    )
+  const source = compact(text);
+  const normalizedSource = normalize(source);
+  const normalizedTarget = normalize(jibun);
+
+  const index = normalizedSource.indexOf(
+    normalizedTarget
   );
-}
 
-function findRoleMatches(
-  text
-) {
-  const roles = [];
-
-  for (
-    const [
-      role,
-      patterns
-    ]
-    of Object.entries(
-      TARGET_ROLE_PATTERNS
-    )
-  ) {
-    if (
-      patterns.some(
-        (pattern) =>
-          containsPattern(
-            text,
-            pattern
-          )
-      )
-    ) {
-      roles.push(
-        role
-      );
-    }
-  }
-
-  /*
-   * "지형도면"이라는 단어만 있는
-   * 일반 고시 페이지는 terrain_map으로
-   * 판정하지 않는다.
-   */
-  if (
-    roles.includes(
-      "terrain_map"
-    ) &&
-    !containsPattern(
-      text,
-      "지형도면고시도"
-    ) &&
-    !containsPattern(
-      text,
-      "지형도면 고시도"
-    )
-  ) {
-    return roles.filter(
-      (role) =>
-        role !==
-        "terrain_map"
-    );
-  }
-
-  return roles;
-}
-
-function findJibunHits(
-  text,
-  variants
-) {
-  const normalizedText =
-    normalize(
-      text
-    );
-
-  const hits = [];
-
-  for (
-    const variant of variants
-  ) {
-    if (
-      normalizedText.includes(
-        normalize(
-          variant
-        )
-      )
-    ) {
-      hits.push(
-        variant
-      );
-    }
-  }
-
-  return [
-    ...new Set(hits)
-  ];
-}
-
-function makeSnippet(
-  text,
-  keyword
-) {
-  const source =
-    compact(
-      text
-    );
-
-  const sourceNormalized =
-    normalize(
-      source
-    );
-
-  const target =
-    normalize(
-      keyword
-    );
-
-  const index =
-    sourceNormalized.indexOf(
-      target
-    );
-
-  if (
-    index < 0
-  ) {
+  if (index < 0) {
     return null;
   }
 
-  /*
-   * 표시용 문맥은 OCR 문자열에서
-   * 충분한 앞/뒤를 반환한다.
-   */
-  return source.slice(
-    0,
+  let normalizedCount = 0;
+  let originalIndex = 0;
+
+  for (let i = 0; i < source.length; i += 1) {
+    normalizedCount += normalize(source[i]).length;
+
+    if (normalizedCount > index) {
+      originalIndex = i;
+      break;
+    }
+
+    originalIndex = i;
+  }
+
+  const start =
+    Math.max(0, originalIndex - before);
+
+  const end =
     Math.min(
       source.length,
-      800
+      originalIndex + jibun.length + after
+    );
+
+  let snippet = source.slice(start, end);
+
+  if (start > 0) {
+    snippet = "..." + snippet;
+  }
+
+  if (end < source.length) {
+    snippet += "...";
+  }
+
+  return {
+    matchedText: jibun,
+    snippet
+  };
+}
+
+function findJibunHits(text, variants) {
+  const normalizedText = normalize(text);
+  const hits = [];
+
+  for (const variant of variants) {
+    if (
+      normalizedText.includes(
+        normalize(variant)
+      )
+    ) {
+      hits.push(variant);
+    }
+  }
+
+  return [...new Set(hits)];
+}
+
+function extractAreaFromParcelSnippet(
+  snippet,
+  jibun
+) {
+  if (!snippet) {
+    return {
+      values: [],
+      likelyArea: null,
+      raw: null
+    };
+  }
+
+  const source = compact(snippet);
+  const normalizedSource = normalize(source);
+  const normalizedTarget = normalize(jibun);
+  const normalizedIndex =
+    normalizedSource.indexOf(normalizedTarget);
+
+  let localSource = source;
+
+  if (normalizedIndex >= 0) {
+    let count = 0;
+    let originalIndex = 0;
+
+    for (let i = 0; i < source.length; i += 1) {
+      count += normalize(source[i]).length;
+
+      if (count > normalizedIndex) {
+        originalIndex = i;
+        break;
+      }
+
+      originalIndex = i;
+    }
+
+    localSource = source.slice(originalIndex);
+  }
+
+  const valuesPattern =
+    /(?:\||｜|\s)+(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)\s*(?:㎡|m²|m2)?\s*(?:\||｜)\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)(?:\s*(?:㎡|m²|m2))?/i;
+
+  const valuesMatch =
+    localSource.match(valuesPattern);
+
+  if (valuesMatch) {
+    return {
+      values: [
+        valuesMatch[1],
+        valuesMatch[2]
+      ],
+      likelyArea:
+        valuesMatch[1] === valuesMatch[2]
+          ? valuesMatch[1]
+          : valuesMatch[1],
+      raw: valuesMatch[0]
+    };
+  }
+
+  const unitMatch =
+    localSource.match(
+      /(?:^|\s|\|)(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)\s*(?:㎡|m²|m2)\b/i
+    );
+
+  if (unitMatch) {
+    return {
+      values: [unitMatch[1]],
+      likelyArea: unitMatch[1],
+      raw: unitMatch[0]
+    };
+  }
+
+  return {
+    values: [],
+    likelyArea: null,
+    raw: null
+  };
+}
+
+function isGuidelineStartPage(text) {
+  const normalized = normalize(text);
+
+  return (
+    normalized.includes(
+      "지구단위계획시행지침"
+    ) &&
+    (
+      normalized.includes("총칙") ||
+      normalized.includes("목적") ||
+      normalized.includes("제1조") ||
+      normalized.includes("제2조") ||
+      normalized.includes("제3조") ||
+      normalized.includes("변경")
     )
   );
 }
 
-class CanvasFactory {
-  create(
-    width,
-    height
+function isDecisionDrawingPage(text) {
+  const normalized = normalize(text);
+
+  const hasUrbanPlan =
+    normalized.includes("도시관리계획");
+
+  const hasDecision =
+    normalized.includes("결정");
+
+  const hasDrawingSuffix =
+    normalized.includes("결정도") ||
+    normalized.includes("기정도") ||
+    normalized.includes("변경도") ||
+    normalized.includes("결정기정도") ||
+    normalized.includes("결정변경도");
+
+  const hasMapContext =
+    normalized.includes("지구단위계획") ||
+    normalized.includes("가구및획지") ||
+    normalized.includes("도면");
+
+  return (
+    hasUrbanPlan &&
+    hasDecision &&
+    hasDrawingSuffix &&
+    hasMapContext &&
+    !normalized.includes("지형도면고시도")
+  );
+}
+
+function isTerrainMapPage(text) {
+  const normalized = normalize(text);
+
+  return (
+    normalized.includes("지형도면고시도") ||
+    normalized.includes("지형도면고시도")
+  );
+}
+
+function isOmittedPage(text, materialPatterns) {
+  const normalized = normalize(text);
+
+  const hasOmission =
+    OMISSION_PATTERNS.some(
+      (pattern) =>
+        normalized.includes(
+          normalize(pattern)
+        )
+    );
+
+  if (!hasOmission) {
+    return false;
+  }
+
+  return materialPatterns.some(
+    (pattern) =>
+      normalized.includes(
+        normalize(pattern)
+      )
+  );
+}
+
+function makeContinuousRange(
+  firstPage,
+  lastPage
+) {
+  if (
+    firstPage === null ||
+    lastPage === null ||
+    firstPage > lastPage
   ) {
+    return [];
+  }
+
+  const result = [];
+
+  for (
+    let page = firstPage;
+    page <= lastPage;
+    page += 1
+  ) {
+    result.push(page);
+  }
+
+  return result;
+}
+
+function buildGuidelineRange(
+  guidelineStart,
+  decisionPages,
+  totalPages
+) {
+  if (guidelineStart === null) {
+    return [];
+  }
+
+  let end = totalPages;
+
+  if (decisionPages.length > 0) {
+    const decisionStart =
+      Math.min(...decisionPages);
+
+    end = decisionStart - 1;
+  }
+
+  return makeContinuousRange(
+    guidelineStart,
+    end
+  );
+}
+
+function buildDecisionRange(
+  decisionPages,
+  terrainPages,
+  totalPages
+) {
+  if (decisionPages.length === 0) {
+    return [];
+  }
+
+  const start =
+    Math.min(...decisionPages);
+
+  let end = totalPages;
+
+  if (terrainPages.length > 0) {
+    const terrainStart =
+      Math.min(...terrainPages);
+
+    if (terrainStart > start) {
+      end = terrainStart - 1;
+    }
+  }
+
+  return makeContinuousRange(
+    start,
+    end
+  );
+}
+
+function buildTerrainRange(terrainPages) {
+  if (terrainPages.length === 0) {
+    return [];
+  }
+
+  return makeContinuousRange(
+    Math.min(...terrainPages),
+    Math.max(...terrainPages)
+  );
+}
+
+function getPageDetails(
+  pages,
+  pageNumbers,
+  extra = () => ({})
+) {
+  const pageSet = new Set(pageNumbers);
+
+  return pages
+    .filter((page) =>
+      pageSet.has(page.page)
+    )
+    .map((page) => ({
+      page: page.page,
+      textPreview:
+        page.text.slice(0, 500),
+      textChars:
+        page.text.length,
+      ...extra(page)
+    }));
+}
+
+function findParcelEvidence(
+  pages,
+  variants
+) {
+  const result = [];
+
+  for (const page of pages) {
+    if (!page.text) {
+      continue;
+    }
+
+    for (const variant of variants) {
+      const context =
+        makeContextAroundJibun(
+          page.text,
+          variant
+        );
+
+      if (!context) {
+        continue;
+      }
+
+      result.push({
+        page: page.page,
+        variant,
+        snippet: context.snippet
+      });
+
+      break;
+    }
+  }
+
+  return result;
+}
+
+function detectSourceMaterials(
+  pages,
+  totalPages
+) {
+  const guidelineStart =
+    pages.find((page) =>
+      isGuidelineStartPage(page.text)
+    )?.page ?? null;
+
+  const decisionPages =
+    pages
+      .filter((page) =>
+        isDecisionDrawingPage(
+          page.text
+        )
+      )
+      .map((page) => page.page);
+
+  const terrainPages =
+    pages
+      .filter((page) =>
+        isTerrainMapPage(page.text)
+      )
+      .map((page) => page.page);
+
+  const guidelineRange =
+    buildGuidelineRange(
+      guidelineStart,
+      decisionPages,
+      totalPages
+    );
+
+  const decisionRange =
+    buildDecisionRange(
+      decisionPages,
+      terrainPages,
+      totalPages
+    );
+
+  const terrainRange =
+    buildTerrainRange(
+      terrainPages
+    );
+
+  const omittedGuidelinePages =
+    pages
+      .filter((page) =>
+        guidelineRange.includes(page.page)
+      )
+      .filter((page) =>
+        isOmittedPage(
+          page.text,
+          [
+            "지구단위계획 시행지침",
+            "전문"
+          ]
+        )
+      )
+      .map((page) => page.page);
+
+  const omittedDrawingPages =
+    pages
+      .filter((page) =>
+        isOmittedPage(
+          page.text,
+          [
+            "관계도면",
+            "도면"
+          ]
+        )
+      )
+      .map((page) => page.page);
+
+  return {
+    implementationGuideline: {
+      startPage:
+        guidelineStart,
+      pages:
+        guidelineRange,
+      keywordPages:
+        pages
+          .filter((page) =>
+            hasNormalized(
+              page.text,
+              "지구단위계획시행지침"
+            )
+          )
+          .map((page) => page.page),
+      details:
+        getPageDetails(
+          pages,
+          guidelineRange
+        ),
+      fullTextAvailable:
+        guidelineStart !== null &&
+        omittedGuidelinePages.length === 0,
+      omitted:
+        omittedGuidelinePages.length > 0,
+      omittedPages:
+        omittedGuidelinePages,
+      rangeBasis:
+        decisionPages.length > 0
+          ? "guideline_start_to_first_decision_page"
+          : "guideline_start_to_pdf_end"
+    },
+
+    decisionDrawings: {
+      keywordPages:
+        decisionPages,
+      pages:
+        decisionRange,
+      details:
+        getPageDetails(
+          pages,
+          decisionRange
+        ),
+      omittedPages:
+        omittedDrawingPages,
+      rangeBasis:
+        terrainPages.length > 0
+          ? "first_decision_to_before_first_terrain"
+          : "first_decision_to_pdf_end"
+    },
+
+    terrainMaps: {
+      keywordPages:
+        terrainPages,
+      pages:
+        terrainRange,
+      details:
+        getPageDetails(
+          pages,
+          terrainRange
+        ),
+      rangeBasis:
+        "first_to_last_detected_terrain_map_page"
+    }
+  };
+}
+
+class CanvasFactory {
+  create(width, height) {
     const canvas =
       createCanvas(
-        Math.ceil(
-          width
-        ),
-        Math.ceil(
-          height
-        )
+        Math.ceil(width),
+        Math.ceil(height)
       );
 
     return {
       canvas,
-
       context:
-        canvas.getContext(
-          "2d"
-        )
+        canvas.getContext("2d")
     };
   }
 
-  reset(
-    pair,
-    width,
-    height
-  ) {
+  reset(pair, width, height) {
     pair.canvas.width =
-      Math.ceil(
-        width
-      );
+      Math.ceil(width);
 
     pair.canvas.height =
-      Math.ceil(
-        height
-      );
+      Math.ceil(height);
 
     pair.context =
-      pair.canvas.getContext(
-        "2d"
-      );
+      pair.canvas.getContext("2d");
   }
 
-  destroy(
-    pair
-  ) {
+  destroy(pair) {
     pair.canvas = null;
     pair.context = null;
   }
@@ -327,14 +646,9 @@ async function createKoreanWorker() {
     );
 
   await worker.setParameters({
-    tessedit_pageseg_mode:
-      "3",
-
-    preserve_interword_spaces:
-      "1",
-
-    user_defined_dpi:
-      "300"
+    tessedit_pageseg_mode: "3",
+    preserve_interword_spaces: "1",
+    user_defined_dpi: "300"
   });
 
   return worker;
@@ -356,33 +670,21 @@ export async function locatePdfEvidence(
   }
 
   const buffer =
-    await fs.readFile(
-      pdfPath
-    );
+    await fs.readFile(pdfPath);
 
   const pdf =
     await pdfjsLib
       .getDocument({
         data:
-          new Uint8Array(
-            buffer
-          ),
-
-        disableWorker:
-          true,
-
-        useWorkerFetch:
-          false,
-
-        isEvalSupported:
-          false
+          new Uint8Array(buffer),
+        disableWorker: true,
+        useWorkerFetch: false,
+        isEvalSupported: false
       })
       .promise;
 
   const variants =
-    normalizeJibunVariants(
-      jibun
-    );
+    normalizeJibunVariants(jibun);
 
   const worker =
     await createKoreanWorker();
@@ -395,19 +697,14 @@ export async function locatePdfEvidence(
   try {
     for (
       let pageNo = 1;
-      pageNo <=
-      pdf.numPages;
+      pageNo <= pdf.numPages;
       pageNo += 1
     ) {
       const page =
-        await pdf.getPage(
-          pageNo
-        );
+        await pdf.getPage(pageNo);
 
       const viewport =
-        page.getViewport({
-          scale
-        });
+        page.getViewport({ scale });
 
       const pair =
         canvasFactory.create(
@@ -417,11 +714,8 @@ export async function locatePdfEvidence(
 
       try {
         await page.render({
-          canvasContext:
-            pair.context,
-
+          canvasContext: pair.context,
           viewport,
-
           canvasFactory
         }).promise;
 
@@ -431,14 +725,11 @@ export async function locatePdfEvidence(
           );
 
         const result =
-          await worker.recognize(
-            png
-          );
+          await worker.recognize(png);
 
         const text =
           compact(
-            result?.data?.text ||
-              ""
+            result?.data?.text || ""
           );
 
         const jibunHits =
@@ -447,30 +738,62 @@ export async function locatePdfEvidence(
             variants
           );
 
-        const roles =
-          findRoleMatches(
-            text
+        const roles = [];
+
+        if (
+          hasNormalized(
+            text,
+            "지구단위계획시행지침"
+          )
+        ) {
+          roles.push(
+            "implementation_guideline"
           );
+        }
+
+        if (
+          isDecisionDrawingPage(text)
+        ) {
+          roles.push(
+            "decision_drawing"
+          );
+        }
+
+        if (
+          isTerrainMapPage(text)
+        ) {
+          roles.push(
+            "terrain_map"
+          );
+        }
 
         const matched =
-          jibunHits.length >
-            0 ||
-          roles.length >
-            0;
+          jibunHits.length > 0 ||
+          roles.length > 0;
 
         const pageResult = {
-          page:
-            pageNo,
-
+          page: pageNo,
           jibunHits,
-
           roles,
-
           matched,
-
-          textChars:
-            text.length
+          textChars: text.length,
+          text
         };
+
+        if (
+          jibunHits.length > 0
+        ) {
+          const context =
+            makeContextAroundJibun(
+              text,
+              jibunHits[0]
+            );
+
+          if (context) {
+            pageResult.snippet =
+              context.snippet;
+          }
+        }
 
         if (
           matched &&
@@ -480,20 +803,16 @@ export async function locatePdfEvidence(
           await fs.mkdir(
             imageOutputDir,
             {
-              recursive:
-                true
+              recursive: true
             }
           );
 
           const imagePath =
             path.join(
               imageOutputDir,
-              `page_${String(
-                pageNo
-              ).padStart(
-                3,
-                "0"
-              )}.png`
+              "page_" +
+              String(pageNo).padStart(3, "0") +
+              ".png"
             );
 
           await fs.writeFile(
@@ -505,103 +824,160 @@ export async function locatePdfEvidence(
             imagePath;
         }
 
-        if (
-          jibunHits.length >
-            0
-        ) {
-          pageResult.snippet =
-            makeSnippet(
-              text,
-              jibunHits[0]
-            );
-        }
-
-        pages.push(
-          pageResult
-        );
+        pages.push(pageResult);
       } finally {
-        canvasFactory.destroy(
-          pair
-        );
+        canvasFactory.destroy(pair);
+        page.cleanup();
       }
     }
   } finally {
     await worker.terminate();
   }
 
+  const normalizedPages =
+    pages.map((page) => ({
+      ...page,
+      text:
+        compact(page.text || "")
+    }));
+
+  const parcelEvidence =
+    findParcelEvidence(
+      normalizedPages,
+      variants
+    );
+
   const parcelPages =
-    pages
-      .filter(
-        (page) =>
-          page.jibunHits.length >
-          0
+    [...new Set(
+      parcelEvidence.map(
+        (item) => item.page
       )
-      .map(
-        (page) =>
-          page.page
-      );
+    )].sort(
+      (a, b) => a - b
+    );
 
-  const implementationGuidelinePages =
-    pages
-      .filter(
-        (page) =>
-          page.roles.includes(
-            "implementation_guideline"
-          )
-      )
-      .map(
-        (page) =>
-          page.page
-      );
+  const primaryParcel =
+    parcelEvidence[0] || null;
 
-  const decisionDrawingPages =
-    pages
-      .filter(
-        (page) =>
-          page.roles.includes(
-            "decision_drawing"
-          )
-      )
-      .map(
-        (page) =>
-          page.page
-      );
+  const parcelArea =
+    primaryParcel
+      ? extractAreaFromParcelSnippet(
+          primaryParcel.snippet,
+          primaryParcel.variant
+        )
+      : {
+          values: [],
+          likelyArea: null,
+          raw: null
+        };
 
-  const terrainMapPages =
-    pages
-      .filter(
-        (page) =>
-          page.roles.includes(
-            "terrain_map"
-          )
-      )
-      .map(
-        (page) =>
-          page.page
-      );
+  const totalPages =
+    pdf.numPages;
+
+  const sourceMaterials =
+    detectSourceMaterials(
+      normalizedPages,
+      totalPages
+    );
+
+  const warnings = [];
+
+  if (parcelEvidence.length === 0) {
+    warnings.push(
+      "Target jibun was not found in OCR text."
+    );
+  }
+
+  if (
+    parcelEvidence.length > 0 &&
+    parcelArea.likelyArea === null
+  ) {
+    warnings.push(
+      "Target parcel was found, but a reliable area value was not extracted from the nearby OCR context."
+    );
+  }
+
+  if (
+    sourceMaterials.implementationGuideline.startPage === null
+  ) {
+    warnings.push(
+      "Implementation guideline section was not located by OCR."
+    );
+  }
+
+  if (
+    sourceMaterials.implementationGuideline.omitted
+  ) {
+    warnings.push(
+      "The guideline appears to contain a '게재생략' notice; full guideline text is not treated as available in this source PDF."
+    );
+  }
+
+  if (
+    sourceMaterials.decisionDrawings.pages.length === 0
+  ) {
+    warnings.push(
+      "Decision drawing section was not located by OCR."
+    );
+  }
+
+  if (
+    sourceMaterials.terrainMaps.pages.length === 0
+  ) {
+    warnings.push(
+      "Terrain-map section was not located by OCR."
+    );
+  }
 
   return {
-    fileType:
-      "pdf",
+    fileType: "pdf",
+    filePath: pdfPath,
+    pageCount: totalPages,
+    targetJibun: jibun,
+    targetVariants: variants,
 
-    filePath:
-      pdfPath,
+    parcelEvidence: {
+      pages: parcelPages,
+      primary:
+        primaryParcel
+          ? {
+              page:
+                primaryParcel.page,
+              matchedVariant:
+                primaryParcel.variant,
+              area:
+                parcelArea,
+              snippet:
+                primaryParcel.snippet
+            }
+          : null,
+      allMatches:
+        parcelEvidence
+    },
 
-    pageCount:
-      pdf.numPages,
+    sourceMaterials,
 
-    targetJibun:
-      jibun,
+    warnings,
 
-    parcelPages,
-
-    implementationGuidelinePages,
-
-    decisionDrawingPages,
-
-    terrainMapPages,
-
-    pages
+    pages:
+      normalizedPages.map(
+        (page) => ({
+          page:
+            page.page,
+          jibunHits:
+            page.jibunHits,
+          roles:
+            page.roles,
+          matched:
+            page.matched,
+          textChars:
+            page.textChars,
+          snippet:
+            page.snippet || null,
+          imagePath:
+            page.imagePath || null
+        })
+      )
   };
 }
 
@@ -633,14 +1009,11 @@ export async function locateImageEvidence(
 
     const text =
       compact(
-        result?.data?.text ||
-          ""
+        result?.data?.text || ""
       );
 
     const variants =
-      normalizeJibunVariants(
-        jibun
-      );
+      normalizeJibunVariants(jibun);
 
     const jibunHits =
       findJibunHits(
@@ -648,33 +1021,85 @@ export async function locateImageEvidence(
         variants
       );
 
-    const roles =
-      findRoleMatches(
-        text
+    const context =
+      jibunHits.length > 0
+        ? makeContextAroundJibun(
+            text,
+            jibunHits[0]
+          )
+        : null;
+
+    const roles = [];
+
+    if (
+      hasNormalized(
+        text,
+        "지구단위계획시행지침"
+      )
+    ) {
+      roles.push(
+        "implementation_guideline"
+      );
+    }
+
+    if (
+      isDecisionDrawingPage(text)
+    ) {
+      roles.push(
+        "decision_drawing"
+      );
+    }
+
+    if (
+      isTerrainMapPage(text)
+    ) {
+      roles.push(
+        "terrain_map"
+      );
+    }
+
+    const omitted =
+      isOmittedPage(
+        text,
+        [
+          "지구단위계획 시행지침",
+          "전문",
+          "관계도면"
+        ]
       );
 
+    const warnings = [];
+
+    if (
+      jibunHits.length === 0
+    ) {
+      warnings.push(
+        "Target jibun was not found in OCR text. This does not prove that the image is unrelated."
+      );
+    }
+
+    if (omitted) {
+      warnings.push(
+        "The image OCR contains a '게재생략' notice; the source is preserved as-is and is not treated as a complete document replacement."
+      );
+    }
+
     return {
-      fileType:
-        "image",
-
-      filePath:
-        imagePath,
-
-      targetJibun:
-        jibun,
-
+      fileType: "image",
+      filePath: imagePath,
+      targetJibun: jibun,
+      targetVariants: variants,
       jibunHits,
-
       roles,
-
       matched:
-        jibunHits.length >
-          0 ||
-        roles.length >
-          0,
-
+        jibunHits.length > 0 ||
+        roles.length > 0,
+      snippet:
+        context?.snippet || null,
       textChars:
-        text.length
+        text.length,
+      omitted,
+      warnings
     };
   } finally {
     await worker.terminate();
