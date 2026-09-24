@@ -161,6 +161,17 @@ function requestBuffer(
       reject
     );
 
+    if (
+      body !== null &&
+      body !== undefined
+    ) {
+      if (Buffer.isBuffer(body)) {
+        req.write(body);
+      } else {
+        req.write(String(body));
+      }
+    }
+
     req.end();
   });
 }
@@ -738,23 +749,30 @@ export async function callNoticeConnector(
 export async function fetchEumDetailPage(
   urlString,
   {
-    referer = EUM_PAGE
+    referer = EUM_PAGE,
+    cookie = ""
   } = {}
 ) {
+  const headers = {
+    Accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+    Referer:
+      referer,
+
+    "Accept-Language":
+      "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+  };
+
+  if (cookie) {
+    headers.Cookie = cookie;
+  }
+
   const response =
     await requestBuffer(
       urlString,
       {
-        headers: {
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-
-          Referer:
-            referer,
-
-          "Accept-Language":
-            "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
-        }
+        headers
       }
     );
 
@@ -778,6 +796,16 @@ export async function fetchEumDetailPage(
     );
   }
 
+  const setCookies =
+    getSetCookieHeaders(
+      response.headers
+    );
+
+  const responseCookie =
+    buildCookieHeader(
+      setCookies
+    );
+
   return {
     url:
       urlString,
@@ -794,29 +822,41 @@ export async function fetchEumDetailPage(
       response.body.length,
 
     html:
-      decoded.text
+      decoded.text,
+
+    cookie:
+      responseCookie || cookie
   };
 }
 
 export async function downloadBinary(
   urlString,
   {
+    method = "GET",
+    body = null,
+    headers = {},
     referer = EUM_PAGE,
     timeoutMs = 120000
   } = {}
 ) {
+  const requestHeaders = {
+    Accept:
+      "*/*",
+
+    Referer:
+      referer,
+
+    ...headers
+  };
+
   const response =
     await requestBuffer(
       urlString,
       {
-        headers: {
-          Accept:
-            "*/*",
-
-          Referer:
-            referer
-        },
-
+        method,
+        headers:
+          requestHeaders,
+        body,
         timeoutMs
       }
     );
@@ -857,19 +897,402 @@ export async function downloadBinary(
   };
 }
 
+function decodeHtmlEntitiesSimple(
+  value
+) {
+  return String(value ?? "")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&nbsp;/gi, " ");
+}
+
+function stripHtmlForSearch(
+  value
+) {
+  return decodeHtmlEntitiesSimple(
+    String(value ?? "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+function buildGosiListUrl(
+  {
+    noticeNo = "",
+    noticeDate = "",
+    pageNo = 1,
+    listSize = 100
+  } = {}
+) {
+  const url =
+    new URL(
+      "https://www.eum.go.kr/web/gs/gv/gvGosiList.jsp"
+    );
+
+  const params = {
+    chrgorg: "",
+    enddt: noticeDate || "",
+    geul_yn: "",
+    gihyung_yn: "",
+    gosichrg: "",
+    gosino: noticeNo || "",
+    listSize: String(listSize),
+    mobile_yn: "",
+    pageNo: String(pageNo),
+    prj_cat_cd: "",
+    prj_nm: "",
+    selSggCd: "",
+    select2: "",
+    select_3: "",
+    silsi_yn: "",
+    startdt: noticeDate || "",
+    zonenm: ""
+  };
+
+  for (
+    const [key, value]
+    of Object.entries(params)
+  ) {
+    url.searchParams.set(
+      key,
+      value
+    );
+  }
+
+  return url.toString();
+}
+
+function extractGosiDetailSeqs(
+  html
+) {
+  const result = [];
+  const seen = new Set();
+
+  const regex =
+    /gvGosiDet\.jsp[^"'<>]*?(?:[?&]|&amp;)seq(?:=|%3D)(\d+)/gi;
+
+  for (
+    const match of html.matchAll(regex)
+  ) {
+    const seq =
+      String(match[1] ?? "").trim();
+
+    if (
+      !seq ||
+      seen.has(seq)
+    ) {
+      continue;
+    }
+
+    seen.add(seq);
+    result.push(seq);
+  }
+
+  return result;
+}
+
+export async function findEumDetailPages(
+  notice,
+  {
+    maxPages = 5,
+    listSize = 100,
+    maxCandidates = 20
+  } = {}
+) {
+  const noticeNo =
+    String(
+      notice?.notice_no ??
+      ""
+    ).trim();
+
+  const noticeDate =
+    String(
+      notice?.notice_date ??
+      ""
+    ).trim();
+
+  const targetOrgan =
+    stripHtmlForSearch(
+      notice?.organ_nm ?? ""
+    );
+
+  if (!noticeNo) {
+    return [];
+  }
+
+  const candidateSeqs = [];
+  const seenSeqs = new Set();
+  const listPages = [];
+  let cookie = "";
+
+  for (
+    let pageNo = 1;
+    pageNo <= maxPages;
+    pageNo += 1
+  ) {
+    const listUrl =
+      buildGosiListUrl({
+        noticeNo,
+        noticeDate,
+        pageNo,
+        listSize
+      });
+
+    const headers = {
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+      "Accept-Language":
+        "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+    };
+
+    if (cookie) {
+      headers.Cookie = cookie;
+    }
+
+    const response =
+      await requestBuffer(
+        listUrl,
+        {
+          headers
+        }
+      );
+
+    const contentType =
+      response.headers[
+        "content-type"
+      ] ?? "";
+
+    const decoded =
+      decodeText(
+        response.body,
+        contentType
+      );
+
+    const setCookies =
+      getSetCookieHeaders(
+        response.headers
+      );
+
+    cookie =
+      buildCookieHeader(
+        setCookies
+      ) || cookie;
+
+    const html =
+      decoded.text;
+
+    listPages.push({
+      url:
+        listUrl,
+
+      status:
+        response.status,
+
+      encoding:
+        decoded.encoding,
+
+      bytes:
+        response.body.length,
+
+      seqs:
+        extractGosiDetailSeqs(
+          html
+        )
+    });
+
+    const pageSeqs =
+      extractGosiDetailSeqs(
+        html
+      );
+
+    for (
+      const seq
+      of pageSeqs
+    ) {
+      if (
+        seenSeqs.has(seq)
+      ) {
+        continue;
+      }
+
+      seenSeqs.add(seq);
+      candidateSeqs.push(seq);
+
+      if (
+        candidateSeqs.length >=
+        maxCandidates
+      ) {
+        break;
+      }
+    }
+
+    if (
+      candidateSeqs.length >=
+      maxCandidates
+    ) {
+      break;
+    }
+
+    if (
+      pageSeqs.length === 0
+    ) {
+      break;
+    }
+  }
+
+  const details = [];
+
+  for (
+    const seq
+    of candidateSeqs
+  ) {
+    const detailUrl =
+      new URL(
+        "https://www.eum.go.kr/web/gs/gv/gvGosiDet.jsp"
+      );
+
+    detailUrl.searchParams.set(
+      "mobile_yn",
+      ""
+    );
+
+    detailUrl.searchParams.set(
+      "seq",
+      seq
+    );
+
+    const detailHeaders = {
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+      "Accept-Language":
+        "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+
+      Referer:
+        listPages.at(-1)?.url ||
+        EUM_PAGE
+    };
+
+    if (cookie) {
+      detailHeaders.Cookie =
+        cookie;
+    }
+
+    const response =
+      await requestBuffer(
+        detailUrl.toString(),
+        {
+          headers:
+            detailHeaders
+        }
+      );
+
+    const contentType =
+      response.headers[
+        "content-type"
+      ] ?? "";
+
+    const decoded =
+      decodeText(
+        response.body,
+        contentType
+      );
+
+    if (
+      response.status < 200 ||
+      response.status >= 400
+    ) {
+      continue;
+    }
+
+    const searchable =
+      stripHtmlForSearch(
+        decoded.text
+      );
+
+    if (
+      noticeNo &&
+      !searchable.includes(
+        noticeNo
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      noticeDate &&
+      !searchable.includes(
+        noticeDate
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      targetOrgan &&
+      !searchable.includes(
+        targetOrgan
+      )
+    ) {
+      continue;
+    }
+
+    const detailSetCookies =
+      getSetCookieHeaders(
+        response.headers
+      );
+
+    const detailCookie =
+      buildCookieHeader(
+        detailSetCookies
+      ) || cookie;
+
+    details.push({
+      seq,
+      url:
+        detailUrl.toString(),
+      status:
+        response.status,
+      contentType,
+      encoding:
+        decoded.encoding,
+      bytes:
+        response.body.length,
+      html:
+        decoded.text,
+      cookie:
+        detailCookie
+    });
+  }
+
+  return {
+    listPages,
+    candidateSeqs,
+    details
+  };
+}
+
 export function buildNoticeDetailUrl(
   notice
 ) {
-  const parts =
+  const seq =
     String(
-      notice.notice_no
-    ).split("-");
+      notice?.detailSeq ??
+      ""
+    ).trim();
 
   if (
-    parts.length !== 2
+    !/^\d+$/.test(seq)
   ) {
     throw new Error(
-      `Unsupported notice_no format: ${notice.notice_no}`
+      "EUM detail seq is required. " +
+      "It must be discovered from the EUM gosi list; " +
+      "wtnnc_cd is not an EUM detail seq."
     );
   }
 
@@ -880,24 +1303,7 @@ export function buildNoticeDetailUrl(
 
   url.searchParams.set(
     "seq",
-    ""
-  );
-
-  url.searchParams.set(
-    "gosi_no_chrg",
-    String(
-      notice.org_cd
-    )
-  );
-
-  url.searchParams.set(
-    "gosi_no_year",
-    parts[0]
-  );
-
-  url.searchParams.set(
-    "gosi_no_no",
-    parts[1]
+    seq
   );
 
   url.searchParams.set(
