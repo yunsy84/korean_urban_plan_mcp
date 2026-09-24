@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { locatePdfEvidence } from "./evidence_locator.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -554,7 +555,10 @@ async function analyzeOneTextSource(
     displayName = null,
     sourceKind = null,
     variants,
-    parcelNumberVariants = []
+    parcelNumberVariants = [],
+    enableOcrFallback = true,
+    ocrPsmModes = ["3", "6", "11"],
+    ocrScale = 2.5
   } = {}
 ) {
   const kind =
@@ -608,6 +612,49 @@ async function analyzeOneTextSource(
           page => page.page
         );
 
+    let ocr = null;
+
+    if (
+      enableOcrFallback &&
+      matches.length === 0
+    ) {
+      try {
+        ocr =
+          await locatePdfEvidence(
+            filePath,
+            {
+              jibun:
+                variants[0] || "",
+              saveMatchedImages:
+                false,
+              scale:
+                ocrScale,
+              ocrPsmModes
+            }
+          );
+      } catch (error) {
+        ocr = {
+          error:
+            String(
+              error?.message ||
+              error
+            )
+        };
+      }
+    }
+
+    const ocrMatched =
+      Boolean(
+        ocr?.parcelEvidence?.pages?.length
+      );
+
+    const ocrEvidence =
+      ocr?.parcelEvidence || {
+        pages: [],
+        primary: null,
+        allMatches: []
+      };
+
     return {
       fileType: "pdf",
       filePath,
@@ -620,7 +667,14 @@ async function analyzeOneTextSource(
       textChars:
         pdf.text.length,
       matched:
-        matches.length > 0,
+        matches.length > 0 ||
+        ocrMatched,
+      matchMethod:
+        matches.length > 0
+          ? "native_text"
+          : ocrMatched
+            ? "ocr"
+            : null,
       matchedVariants:
         matches,
       matchedPages:
@@ -644,7 +698,31 @@ async function analyzeOneTextSource(
               pdf.text,
               parcelNumberMatches[0]
             )
-          : null
+          : null,
+      ocrAttempted:
+        enableOcrFallback &&
+        matches.length === 0,
+      ocrMatched,
+      ocrPsmModes:
+        ocr?.ocrPsmModes ??
+        ocrPsmModes,
+      ocrEvidence,
+      ocrWarnings:
+        ocr?.warnings ?? [],
+      ocrError:
+        ocr?.error ?? null,
+      status:
+        pdf.text.length === 0
+          ? (
+              ocrMatched
+                ? "ocr_confirmed"
+                : "text_layer_unavailable_ocr_not_confirmed"
+            )
+          : (
+              ocrMatched
+                ? "ocr_confirmed"
+                : "text_extracted_not_confirmed"
+            )
     };
   }
 
@@ -828,7 +906,10 @@ export async function analyzeTextApplicability({
   jibun,
   notice,
   attachments,
-  noticeDir
+  noticeDir,
+  enableOcrFallback = true,
+  ocrPsmModes = ["3", "6", "11"],
+  ocrScale = 2.5
 }) {
   const variants =
     makeJibunVariants(
@@ -928,7 +1009,10 @@ export async function analyzeTextApplicability({
             sourceKind:
               kind,
             variants,
-            parcelNumberVariants
+            parcelNumberVariants,
+            enableOcrFallback,
+            ocrPsmModes,
+            ocrScale
           }
         );
 
@@ -972,7 +1056,10 @@ export async function analyzeTextApplicability({
                       ? "hwp"
                       : "ole",
               variants,
-              parcelNumberVariants
+              parcelNumberVariants,
+              enableOcrFallback,
+              ocrPsmModes,
+              ocrScale
             }
           );
 
@@ -1001,15 +1088,37 @@ export async function analyzeTextApplicability({
     "NOT_CONFIRMED_BY_TEXT";
 
   if (
-    matches.length > 0
+    matches.some(
+      source =>
+        source.matchMethod ===
+        "native_text"
+    )
   ) {
     status =
       "CONFIRMED_BY_TEXT";
+  } else if (
+    matches.some(
+      source =>
+        source.matchMethod ===
+        "ocr"
+    )
+  ) {
+    status =
+      "CONFIRMED_BY_OCR";
   } else if (
     sources.length === 0
   ) {
     status =
       "TEXT_SOURCE_UNAVAILABLE";
+  } else if (
+    sources.some(
+      source =>
+        source.status ===
+        "text_layer_unavailable_ocr_not_confirmed"
+    )
+  ) {
+    status =
+      "OCR_NOT_CONFIRMED";
   }
 
   return {
