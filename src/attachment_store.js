@@ -5,275 +5,121 @@ import {
   downloadBinary
 } from "./eum_source_client.js";
 
-const ROOT =
-  process.cwd();
+const ROOT = process.cwd();
+const CACHE_ROOT = path.join(ROOT, "cache", "notice");
 
-const CACHE_ROOT =
-  path.join(
-    ROOT,
-    "cache",
-    "notice"
-  );
-
-function safeFileName(
-  value
-) {
-  const cleaned =
-    String(value ?? "")
-      .replace(
-        /[<>:"/\\|?*\x00-\x1F]/g,
-        "_"
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .trim();
-
-  return (
-    cleaned ||
-    "attachment"
-  );
+function safeFileName(value) {
+  const cleaned = String(value ?? "")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || "attachment";
 }
 
-function extensionForKind(
-  kind
-) {
-  if (kind === "pdf") {
-    return ".pdf";
-  }
-
-  if (kind === "zip") {
-    return ".zip";
-  }
-
-  if (kind === "image") {
-    return ".img";
-  }
-
+function extensionForKind(kind) {
+  if (kind === "pdf") return ".pdf";
+  if (kind === "zip") return ".zip";
+  if (kind === "image") return ".img";
   return ".bin";
 }
 
-function extensionFromContentType(
-  contentType
-) {
-  const value =
-    String(
-      contentType ?? ""
-    ).toLowerCase();
-
-  if (
-    value.includes(
-      "pdf"
-    )
-  ) {
-    return ".pdf";
-  }
-
-  if (
-    value.includes(
-      "jpeg"
-    )
-  ) {
-    return ".jpg";
-  }
-
-  if (
-    value.includes(
-      "png"
-    )
-  ) {
-    return ".png";
-  }
-
-  if (
-    value.includes(
-      "zip"
-    )
-  ) {
-    return ".zip";
-  }
-
+function extensionFromContentType(contentType) {
+  const value = String(contentType ?? "").toLowerCase();
+  if (value.includes("pdf")) return ".pdf";
+  if (value.includes("jpeg")) return ".jpg";
+  if (value.includes("png")) return ".png";
+  if (value.includes("zip")) return ".zip";
   return "";
 }
 
-function detectMagic(
-  buffer
-) {
-  if (
-    buffer.length >= 4 &&
-    buffer.subarray(
-      0,
-      4
-    ).toString() ===
-      "%PDF"
-  ) {
-    return "pdf";
-  }
+function extensionFromMagic(magic) {
+  if (magic === "pdf") return ".pdf";
+  if (magic === "zip") return ".zip";
+  if (magic === "jpeg") return ".jpg";
+  if (magic === "png") return ".png";
+  return "";
+}
 
-  if (
-    buffer.length >= 4 &&
-    buffer[0] === 0x50 &&
-    buffer[1] === 0x4b
-  ) {
-    return "zip";
-  }
-
-  if (
-    buffer.length >= 8 &&
-    buffer
-      .subarray(0, 8)
-      .toString("hex") ===
-      "89504e470d0a1a0a"
-  ) {
-    return "png";
-  }
-
-  if (
-    buffer.length >= 3 &&
-    buffer
-      .subarray(0, 3)
-      .toString("hex") ===
-      "ffd8ff"
-  ) {
-    return "jpeg";
-  }
-
+function detectMagic(buffer) {
+  if (buffer.length >= 4 && buffer.subarray(0, 4).toString() === "%PDF") return "pdf";
+  if (buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b) return "zip";
+  if (buffer.length >= 8 && buffer.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "png";
+  if (buffer.length >= 3 && buffer.subarray(0, 3).toString("hex") === "ffd8ff") return "jpeg";
   return "unknown";
 }
 
-export async function storeAttachment(
-  noticeCode,
-  attachment,
-  index
-) {
-  const noticeDir =
-    path.join(
-      CACHE_ROOT,
-      safeFileName(
-        noticeCode
-      )
-    );
+function resolveExtension(magic, contentType, kind) {
+  return extensionFromMagic(magic) || extensionFromContentType(contentType) || extensionForKind(kind);
+}
 
-  await fs.mkdir(
-    noticeDir,
-    {
-      recursive:
-        true
-    }
+async function findExistingFile(noticeDir, index, displayName) {
+  const prefix = String(index + 1).padStart(3, "0") + "_";
+  const expected = prefix + displayName;
+  try {
+    const entries = await fs.readdir(noticeDir);
+    if (entries.includes(expected)) return path.join(noticeDir, expected);
+    const match = entries.find((name) => name.startsWith(prefix));
+    return match ? path.join(noticeDir, match) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function storeAttachment(noticeCode, attachment, index, { force = false } = {}) {
+  const noticeDir = path.join(CACHE_ROOT, safeFileName(noticeCode));
+  await fs.mkdir(noticeDir, { recursive: true });
+
+  let displayName = safeFileName(
+    attachment.displayName
+      ?.replace(/&nbsp;/gi, " ")
+      .replace(/\s*\([^)]*KByte\)\s*$/i, "")
   );
 
-  const result =
-    await downloadBinary(
-      attachment.url
-    );
+  if (!displayName) displayName = "attachment_" + (index + 1);
 
-  const magic =
-    detectMagic(
-      result.body
-    );
+  const existing = !force
+    ? await findExistingFile(noticeDir, index, displayName)
+    : null;
 
-  let extension =
-    extensionFromContentType(
-      result.contentType
-    );
-
-  if (!extension) {
-    extension =
-      extensionForKind(
-        attachment.kind
-      );
+  if (existing) {
+    const stat = await fs.stat(existing);
+    return {
+      ...attachment,
+      filePath: existing,
+      downloaded: false,
+      cached: true,
+      bytes: stat.size
+    };
   }
 
-  let displayName =
-    safeFileName(
-      attachment.displayName
-        ?.replace(
-          /&nbsp;/gi,
-          " "
-        )
-        .replace(
-          /\s*\([^)]*KByte\)\s*$/i,
-          ""
-        )
-    );
+  const result = await downloadBinary(attachment.url);
+  const magic = detectMagic(result.body);
+  const extension = resolveExtension(magic, result.contentType, attachment.kind);
 
-  if (
-    !displayName
-  ) {
-    displayName =
-      `attachment_${index + 1}`;
-  }
+  if (!path.extname(displayName)) displayName += extension;
 
-  if (
-    !path
-      .extname(
-        displayName
-      )
-  ) {
-    displayName +=
-      extension;
-  }
-
-  const fileName =
-    `${String(
-      index + 1
-    ).padStart(3, "0")}_${displayName}`;
-
-  const filePath =
-    path.join(
-      noticeDir,
-      fileName
-    );
-
-  await fs.writeFile(
-    filePath,
-    result.body
-  );
+  const fileName = String(index + 1).padStart(3, "0") + "_" + displayName;
+  const filePath = path.join(noticeDir, fileName);
+  await fs.writeFile(filePath, result.body);
 
   return {
     ...attachment,
-
     filePath,
-
-    downloaded:
-      true,
-
-    bytes:
-      result.body.length,
-
-    contentType:
-      result.contentType,
-
-    contentLength:
-      result.contentLength,
-
-    contentDisposition:
-      result.contentDisposition,
-
-    magic
+    downloaded: true,
+    cached: false,
+    bytes: result.body.length,
+    contentType: result.contentType,
+    contentLength: result.contentLength,
+    contentDisposition: result.contentDisposition,
+    magic,
+    actualType: magic !== "unknown" ? magic : attachment.kind
   };
 }
 
-export async function storeAllAttachments(
-  noticeCode,
-  attachments
-) {
+export async function storeAllAttachments(noticeCode, attachments, options = {}) {
   const result = [];
-
-  for (
-    let i = 0;
-    i < attachments.length;
-    i += 1
-  ) {
-    result.push(
-      await storeAttachment(
-        noticeCode,
-        attachments[i],
-        i
-      )
-    );
+  for (let i = 0; i < attachments.length; i += 1) {
+    result.push(await storeAttachment(noticeCode, attachments[i], i, options));
   }
-
   return result;
 }
