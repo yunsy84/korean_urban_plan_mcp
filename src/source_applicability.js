@@ -689,6 +689,12 @@ async function analyzeOneTextSource(
           variants
         );
 
+      const parcelNumberMatches =
+        findMatches(
+          hwp.text,
+          parcelNumberVariants
+        );
+
       return {
         fileType: "hwp",
         filePath,
@@ -704,11 +710,23 @@ async function analyzeOneTextSource(
         matchedVariants:
           matches,
         matchedPages: [],
+        parcelNumberMatched:
+          parcelNumberMatches.length > 0,
+        parcelNumberMatchedVariants:
+          parcelNumberMatches,
+        parcelNumberMatchedPages: [],
         snippet:
           matches.length > 0
             ? snippetAround(
                 hwp.text,
                 matches[0]
+              )
+            : null,
+        parcelNumberSnippet:
+          parcelNumberMatches.length > 0
+            ? snippetAround(
+                hwp.text,
+                parcelNumberMatches[0]
               )
             : null,
         status:
@@ -759,6 +777,12 @@ async function analyzeOneTextSource(
         variants
       );
 
+    const parcelNumberMatches =
+      findMatches(
+        text,
+        parcelNumberVariants
+      );
+
     return {
       fileType: "text",
       filePath,
@@ -784,6 +808,13 @@ async function analyzeOneTextSource(
           ? snippetAround(
               text,
               matches[0]
+            )
+          : null,
+      parcelNumberSnippet:
+        parcelNumberMatches.length > 0
+          ? snippetAround(
+              text,
+              parcelNumberMatches[0]
             )
           : null
     };
@@ -849,6 +880,11 @@ export async function analyzeTextApplicability({
       matchedVariants:
         matches,
       matchedPages: [],
+      parcelNumberMatched:
+        parcelNumberMatches.length > 0,
+      parcelNumberMatchedVariants:
+        parcelNumberMatches,
+      parcelNumberMatchedPages: [],
       snippet:
         matches.length > 0
           ? snippetAround(
@@ -891,7 +927,8 @@ export async function analyzeTextApplicability({
               attachment.displayName,
             sourceKind:
               kind,
-            variants
+            variants,
+            parcelNumberVariants
           }
         );
 
