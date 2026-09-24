@@ -354,7 +354,12 @@ async function runPythonJson(
           ["-c", script, ...args],
           {
             windowsHide: true,
-            maxBuffer: 32 * 1024 * 1024
+            maxBuffer: 32 * 1024 * 1024,
+            env: {
+              ...process.env,
+              PYTHONIOENCODING: "utf-8",
+              PYTHONUTF8: "1"
+            }
           }
         );
 
