@@ -747,7 +747,9 @@ async function analyzeOneTextSource(
           ? (
               ocrMatched
                 ? "ocr_confirmed"
-                : "text_layer_unavailable_ocr_not_confirmed"
+                : ocrSkippedReason
+                  ? "text_layer_unavailable_ocr_skipped"
+                  : "text_layer_unavailable_ocr_not_confirmed"
             )
           : (
               ocrMatched
@@ -1245,12 +1247,37 @@ export async function analyzeTextApplicability({
     sources.some(
       source =>
         source.status ===
-        "text_layer_unavailable_ocr_not_confirmed"
+          "text_layer_unavailable_ocr_not_confirmed" &&
+        source.ocrAttempted
     )
   ) {
     status =
       "OCR_NOT_CONFIRMED";
   }
+
+  const ocrSummary = {
+    attempted:
+      sources.filter(
+        source =>
+          source.ocrAttempted
+      ).length,
+    skipped:
+      sources.filter(
+        source =>
+          source.ocrSkipped
+      ).length,
+    skippedReasons:
+      [
+        ...new Set(
+          sources
+            .map(
+              source =>
+                source.ocrSkippedReason
+            )
+            .filter(Boolean)
+        )
+      ]
+  };
 
   return {
     status,
@@ -1264,6 +1291,7 @@ export async function analyzeTextApplicability({
     },
     matchCount:
       matches.length,
+    ocrSummary,
     matchedSources:
       matches,
     parcelNumberCandidateCount:
