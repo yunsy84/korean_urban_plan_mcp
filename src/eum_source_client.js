@@ -29,6 +29,7 @@ function requestBuffer(
   {
     method = "GET",
     headers = {},
+    body = null,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxBytes = 512 * 1024 * 1024
   } = {}
