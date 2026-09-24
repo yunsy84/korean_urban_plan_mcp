@@ -79,7 +79,15 @@ zip_path = Path(sys.argv[1])
 out_dir = Path(sys.argv[2])
 out_dir.mkdir(parents=True, exist_ok=True)
 
-def detect(head):
+def detect(head, name):
+    suffix = Path(name).suffix.lower()
+
+    if suffix in (".txt", ".text"):
+        return "text", ".txt"
+
+    if suffix in (".hwp", ".hwpx"):
+        return "hwp", ".hwp"
+
     if head.startswith(b"%PDF"):
         return "pdf", ".pdf"
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -102,9 +110,9 @@ with zipfile.ZipFile(zip_path, "r") as z:
         with z.open(info) as f:
             head = f.read(32)
 
-        kind, ext = detect(head)
+        kind, ext = detect(head, info.filename)
 
-        if kind not in ("pdf", "ole"):
+        if kind not in ("pdf", "ole", "text", "hwp"):
             continue
 
         out_path = out_dir / ("source_" + str(index).zfill(3) + ext)
@@ -435,6 +443,10 @@ async function classifyFile(
     return "hwp";
   }
 
+  if (ext === ".zip") {
+    return "zip";
+  }
+
   const buffer =
     await fs.readFile(
       filePath
@@ -445,6 +457,14 @@ async function classifyFile(
     buffer.subarray(0, 4).toString() === "%PDF"
   ) {
     return "pdf";
+  }
+
+  if (
+    buffer.length >= 2 &&
+    buffer[0] === 0x50 &&
+    buffer[1] === 0x4b
+  ) {
+    return "zip";
   }
 
   if (
@@ -796,7 +816,11 @@ export async function analyzeTextApplicability({
               sourceKind:
                 entry.kind === "pdf"
                   ? "pdf"
-                  : "ole",
+                  : entry.kind === "text"
+                    ? "text"
+                    : entry.kind === "hwp"
+                      ? "hwp"
+                      : "ole",
               variants
             }
           );
