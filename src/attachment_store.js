@@ -81,6 +81,15 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
     ? await findExistingFile(noticeDir, index, displayName)
     : null;
 
+  const internalRequest =
+    attachment?._download || null;
+
+  const publicAttachment = {
+    ...attachment
+  };
+
+  delete publicAttachment._download;
+
   if (existing) {
     const stat = await fs.stat(existing);
     return {
@@ -91,15 +100,6 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
       bytes: stat.size
     };
   }
-
-  const internalRequest =
-    attachment?._download || null;
-
-  const publicAttachment = {
-    ...attachment
-  };
-
-  delete publicAttachment._download;
 
   const result =
     await downloadBinary(
