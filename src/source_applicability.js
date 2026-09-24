@@ -169,6 +169,53 @@ function normalize(value) {
     .toLowerCase();
 }
 
+function makeParcelNumberVariants(
+  pnu
+) {
+  const value =
+    String(pnu ?? "");
+
+  if (!/^\d{19}$/.test(value)) {
+    return [];
+  }
+
+  const mainNo =
+    String(
+      Number(
+        value.slice(11, 15)
+      )
+    );
+
+  const subNo =
+    String(
+      Number(
+        value.slice(15, 19)
+      )
+    );
+
+  const variants =
+    new Set();
+
+  if (mainNo === "0") {
+    return [];
+  }
+
+  if (subNo === "0") {
+    variants.add(mainNo);
+    variants.add(mainNo + "번지");
+  } else {
+    variants.add(mainNo + "-" + subNo);
+    variants.add(mainNo + subNo);
+    variants.add(mainNo + "-" + subNo + "번지");
+    variants.add(mainNo + " " + subNo + "번지");
+  }
+
+  return [
+    ...variants
+  ];
+}
+
+
 function makeJibunVariants(jibun) {
   const source = compact(jibun);
   const variants = new Set();
@@ -506,7 +553,8 @@ async function analyzeOneTextSource(
   {
     displayName = null,
     sourceKind = null,
-    variants
+    variants,
+    parcelNumberVariants = []
   } = {}
 ) {
   const kind =
@@ -528,6 +576,12 @@ async function analyzeOneTextSource(
         variants
       );
 
+    const parcelNumberMatches =
+      findMatches(
+        pdf.text,
+        parcelNumberVariants
+      );
+
     const matchedPageNumbers =
       pdf.pages
         .filter(
@@ -535,6 +589,19 @@ async function analyzeOneTextSource(
             findMatches(
               page.text,
               variants
+            ).length > 0
+        )
+        .map(
+          page => page.page
+        );
+
+    const parcelNumberMatchedPages =
+      pdf.pages
+        .filter(
+          page =>
+            findMatches(
+              page.text,
+              parcelNumberVariants
             ).length > 0
         )
         .map(
@@ -558,11 +625,24 @@ async function analyzeOneTextSource(
         matches,
       matchedPages:
         matchedPageNumbers,
+      parcelNumberMatched:
+        parcelNumberMatches.length > 0,
+      parcelNumberMatchedVariants:
+        parcelNumberMatches,
+      parcelNumberMatchedPages:
+        parcelNumberMatchedPages,
       snippet:
         matches.length > 0
           ? snippetAround(
               pdf.text,
               matches[0]
+            )
+          : null,
+      parcelNumberSnippet:
+        parcelNumberMatches.length > 0
+          ? snippetAround(
+              pdf.text,
+              parcelNumberMatches[0]
             )
           : null
     };
@@ -694,6 +774,11 @@ async function analyzeOneTextSource(
       matchedVariants:
         matches,
       matchedPages: [],
+      parcelNumberMatched:
+        parcelNumberMatches.length > 0,
+      parcelNumberMatchedVariants:
+        parcelNumberMatches,
+      parcelNumberMatchedPages: [],
       snippet:
         matches.length > 0
           ? snippetAround(
@@ -719,6 +804,11 @@ export async function analyzeTextApplicability({
       jibun
     );
 
+  const parcelNumberVariants =
+    makeParcelNumberVariants(
+      pnu
+    );
+
   const sources = [];
 
   const noticeText =
@@ -738,6 +828,12 @@ export async function analyzeTextApplicability({
       findMatches(
         noticeText,
         variants
+      );
+
+    const parcelNumberMatches =
+      findMatches(
+        noticeText,
+        parcelNumberVariants
       );
 
     sources.push({
@@ -838,7 +934,8 @@ export async function analyzeTextApplicability({
                     : entry.kind === "hwp"
                       ? "hwp"
                       : "ole",
-              variants
+              variants,
+              parcelNumberVariants
             }
           );
 
@@ -885,12 +982,23 @@ export async function analyzeTextApplicability({
         String(pnu ?? ""),
       jibun:
         compact(jibun),
-      variants
+      variants,
+      parcelNumberVariants
     },
     matchCount:
       matches.length,
     matchedSources:
       matches,
+    parcelNumberCandidateCount:
+      sources.filter(
+        source =>
+          source.parcelNumberMatched
+      ).length,
+    parcelNumberCandidateSources:
+      sources.filter(
+        source =>
+          source.parcelNumberMatched
+      ),
     sources
   };
 }
