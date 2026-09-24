@@ -572,7 +572,8 @@ async function analyzeOneTextSource(
     parcelNumberVariants = [],
     enableOcrFallback = true,
     ocrPsmModes = ["3", "6", "11"],
-    ocrScale = 2.5
+    ocrScale = 2.5,
+    ocrMaxPages = 24
   } = {}
 ) {
   const kind =
@@ -626,12 +627,26 @@ async function analyzeOneTextSource(
           page => page.page
         );
 
-    let ocr = null;
+    const role = roleFromName(
+      displayName || filePath
+    );
 
-    if (
-      enableOcrFallback &&
-      matches.length === 0
-    ) {
+    let ocr = null;
+    let ocrSkippedReason = null;
+
+    const mapOnlyRole =
+      role === "decision_drawing" ||
+      role === "terrain_map";
+
+    if (!enableOcrFallback) {
+      ocrSkippedReason = "disabled";
+    } else if (mapOnlyRole) {
+      ocrSkippedReason =
+        "map_source_requires_manual_visual_review";
+    } else if (pdf.pageCount > ocrMaxPages) {
+      ocrSkippedReason =
+        "large_pdf_over_page_limit";
+    } else if (matches.length === 0) {
       try {
         ocr =
           await locatePdfEvidence(
@@ -673,9 +688,8 @@ async function analyzeOneTextSource(
       fileType: "pdf",
       filePath,
       displayName,
-      role: roleFromName(
-        displayName || filePath
-      ),
+      role,
+
       pageCount:
         pdf.pageCount,
       textChars:
@@ -714,8 +728,11 @@ async function analyzeOneTextSource(
             )
           : null,
       ocrAttempted:
-        enableOcrFallback &&
-        matches.length === 0,
+        Boolean(ocr),
+      ocrSkipped:
+        Boolean(ocrSkippedReason),
+      ocrSkippedReason,
+      ocrMaxPages,
       ocrMatched,
       ocrPsmModes:
         ocr?.ocrPsmModes ??
@@ -931,7 +948,8 @@ export async function analyzeTextApplicability({
   noticeDir,
   enableOcrFallback = true,
   ocrPsmModes = ["3", "6", "11"],
-  ocrScale = 2.5
+  ocrScale = 2.5,
+  ocrMaxPages = 24
 }) {
   const variants =
     makeJibunVariants(
@@ -1080,7 +1098,8 @@ export async function analyzeTextApplicability({
             parcelNumberVariants,
             enableOcrFallback,
             ocrPsmModes,
-            ocrScale
+            ocrScale,
+            ocrMaxPages
           }
         );
 
@@ -1170,7 +1189,8 @@ export async function analyzeTextApplicability({
               parcelNumberVariants,
               enableOcrFallback,
               ocrPsmModes,
-              ocrScale
+              ocrScale,
+              ocrMaxPages
             }
           );
 
