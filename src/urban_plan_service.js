@@ -722,9 +722,126 @@ export async function getNoticeDetailForPnu(
     );
   }
 
-  return getNoticeDetail(
-    notice
-  );
+  const detailSequences = [
+    notice.wtnnc_cd,
+    ...(Array.isArray(
+      notice.relations
+    )
+      ? notice.relations.map(
+          (relation) =>
+            relation.wtnnc_cd
+        )
+      : [])
+  ]
+    .map(
+      (value) =>
+        String(
+          value ?? ""
+        ).trim()
+    )
+    .filter(Boolean);
+
+  const uniqueSequences = [
+    ...new Set(
+      detailSequences
+    )
+  ];
+
+  const sequenceNotices =
+    uniqueSequences.length > 0
+      ? uniqueSequences.map(
+          (seq) => ({
+            ...notice,
+            seq,
+            wtnnc_cd:
+              seq
+          })
+        )
+      : [notice];
+
+  const detailResults = [];
+
+  for (
+    const sequenceNotice
+    of sequenceNotices
+  ) {
+    detailResults.push(
+      await getNoticeDetail(
+        sequenceNotice
+      )
+    );
+  }
+
+  const attachments = [];
+  const seenAttachmentUrls =
+    new Set();
+
+  for (
+    const detailResult
+    of detailResults
+  ) {
+    for (
+      const attachment
+      of Array.isArray(
+        detailResult.attachments
+      )
+        ? detailResult.attachments
+        : []
+    ) {
+      const key =
+        String(
+          attachment.url ?? ""
+        ).trim();
+
+      if (
+        !key ||
+        seenAttachmentUrls.has(
+          key
+        )
+      ) {
+        continue;
+      }
+
+      seenAttachmentUrls.add(
+        key
+      );
+
+      attachments.push({
+        ...attachment,
+        detailSeq:
+          detailResult.notice?.seq ??
+          null
+      });
+    }
+  }
+
+  return {
+    ...detailResults[0],
+    attachments,
+    detailSources:
+      detailResults.map(
+        (detailResult) => ({
+          seq:
+            detailResult.notice?.seq ??
+            null,
+          url:
+            detailResult.detail?.url ??
+            null,
+          status:
+            detailResult.detail?.status ??
+            null,
+          bytes:
+            detailResult.detail?.bytes ??
+            null,
+          attachmentCount:
+            Array.isArray(
+              detailResult.attachments
+            )
+              ? detailResult.attachments.length
+              : 0
+        })
+      )
+  };
 }
 
 
