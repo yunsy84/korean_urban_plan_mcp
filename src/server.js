@@ -367,7 +367,7 @@ server.registerTool(
         "0.4.0",
 
       role:
-        "EUM urban-plan source discovery, download and evidence-location",
+        "EUM urban-plan source discovery, text applicability verification and original-source preservation",
 
       tools: [
         "resolve_urban_plan",
@@ -381,6 +381,7 @@ server.registerTool(
       doesNotDo: [
         "natural-language urban-plan summary",
         "legal interpretation",
+        "drawing-based parcel OCR as a required applicability test",
         "law_mcp processing",
         "korean_land_mcp invocation"
       ]
