@@ -59,7 +59,7 @@ async function main() {
 
   const attachments =
     extractAttachmentCandidates(
-      '<a href="javascript:download("https://www.eum.go.kr/web/FileDownload.do","/test.hwp")">test.hwp</a>',
+      `<a href="javascript:download('https://www.eum.go.kr/web/FileDownload.do','/test.hwp')">test.hwp</a>`,
       "https://www.eum.go.kr/web/gs/gv/gvGosiDet.jsp?seq=1"
     );
 
