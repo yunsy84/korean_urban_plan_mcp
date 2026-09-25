@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import crypto from "node:crypto";
 
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import { locatePdfEvidence } from "./evidence_locator.js";
+import { locatePdfEvidence, locateImageEvidence } from "./evidence_locator.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -135,6 +135,48 @@ finally:
     ole.close()
 `;
 
+
+const HWPX_EXTRACT_SCRIPT = String.raw`
+import sys
+import json
+import zipfile
+import re
+import xml.etree.ElementTree as ET
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="strict")
+
+p = sys.argv[1]
+
+try:
+    with zipfile.ZipFile(p, "r") as z:
+        names = [
+            name
+            for name in z.namelist()
+            if re.search(r"(?:^|/)section\d+\.xml$", name, re.IGNORECASE)
+        ]
+        names.sort(key=lambda name: int(re.search(r"section(\d+)\.xml$", name, re.IGNORECASE).group(1)))
+
+        if not names:
+            print(json.dumps({"ok": False, "reason": "Contents/sectionN.xml not found"}, ensure_ascii=False))
+            raise SystemExit(0)
+
+        parts = []
+        section_meta = []
+        for name in names:
+            root = ET.fromstring(z.read(name))
+            section_parts = []
+            for elem in root.iter():
+                if elem.text and elem.text.strip():
+                    section_parts.append(elem.text)
+            parts.append("\n".join(section_parts))
+            section_meta.append({"name": name, "textChars": sum(len(item) for item in section_parts)})
+
+        print(json.dumps({"ok": True, "text": "\n".join(parts), "sectionCount": len(names), "sections": section_meta}, ensure_ascii=False))
+except Exception as error:
+    print(json.dumps({"ok": False, "reason": str(error)}, ensure_ascii=False))
+`;
+
 const ZIP_EXTRACT_SCRIPT = String.raw`
 import sys
 import json
@@ -157,8 +199,11 @@ def detect(head, name):
     if suffix in (".txt", ".text"):
         return "text", ".txt"
 
-    if suffix in (".hwp", ".hwpx"):
+    if suffix == ".hwp":
         return "hwp", ".hwp"
+
+    if suffix == ".hwpx":
+        return "hwpx", ".hwpx"
 
     if head.startswith(b"%PDF"):
         return "pdf", ".pdf"
@@ -222,7 +267,7 @@ function compact(value) {
 
 function normalize(value) {
   return compact(value)
-    .replace(/[\\s]+/gu, "")
+    .replace(/[\s]+/gu, "")
     .replace(
       /[|｜,，:：.;·ㆍ"'"“”‘’()[\]{}<>《》「」『』/\\_-]/g,
       ""
@@ -526,6 +571,13 @@ async function extractHwpText(filePath) {
   );
 }
 
+async function extractHwpxText(filePath) {
+  return runPythonJson(
+    HWPX_EXTRACT_SCRIPT,
+    [filePath]
+  );
+}
+
 async function inspectZipTextSources(
   zipPath,
   noticeDir
@@ -574,11 +626,18 @@ async function classifyFile(
     return "text";
   }
 
-  if (
-    ext === ".hwp" ||
-    ext === ".hwpx"
-  ) {
+  if (ext === ".hwp") {
     return "hwp";
+  }
+
+  if (ext === ".hwpx") {
+    return "hwpx";
+  }
+
+  if (
+    [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"].includes(ext)
+  ) {
+    return "image";
   }
 
   if (ext === ".zip") {
@@ -614,7 +673,7 @@ async function classifyFile(
   }
 
   if (
-    /\\.hwp(?:x)?$/i.test(name)
+    /\.hwp(?:x)?$/i.test(name)
   ) {
     return "hwp";
   }
@@ -632,7 +691,9 @@ async function analyzeOneTextSource(
     enableOcrFallback = true,
     ocrPsmModes = ["3", "6", "11"],
     ocrScale = 2.5,
-    ocrMaxPages = 24
+    ocrMaxPages = 24,
+    saveMatchedImages = false,
+    imageOutputDir = null
   } = {}
 ) {
   const kind =
@@ -713,8 +774,8 @@ async function analyzeOneTextSource(
             {
               jibun:
                 variants[0] || "",
-              saveMatchedImages:
-                false,
+              saveMatchedImages,
+              imageOutputDir,
               scale:
                 ocrScale,
               ocrPsmModes
@@ -816,6 +877,119 @@ async function analyzeOneTextSource(
                 : "text_extracted_not_confirmed"
             )
     };
+  }
+
+  if (kind === "hwpx") {
+    try {
+      const hwpx =
+        await extractHwpxText(
+          filePath
+        );
+
+      if (!hwpx?.ok) {
+        return {
+          fileType: "hwpx",
+          filePath,
+          displayName,
+          role:
+            roleFromName(
+              displayName || filePath
+            ),
+          textChars: 0,
+          matched: false,
+          matchedVariants: [],
+          matchedPages: [],
+          snippet: null,
+          status:
+            "hwpx_text_unavailable",
+          reason:
+            hwpx?.reason ||
+            null
+        };
+      }
+
+      const matches =
+        findMatches(
+          hwpx.text,
+          variants
+        );
+
+      const parcelNumberMatches =
+        findMatches(
+          hwpx.text,
+          parcelNumberVariants
+        );
+
+      return {
+        fileType: "hwpx",
+        filePath,
+        displayName,
+        role:
+          roleFromName(
+            displayName || filePath
+          ),
+        textChars:
+          compact(hwpx.text).length,
+        matched:
+          matches.length > 0,
+        matchMethod:
+          matches.length > 0
+            ? "native_text"
+            : null,
+        matchedVariants:
+          matches,
+        matchedPages: [],
+        parcelNumberMatched:
+          parcelNumberMatches.length > 0,
+        parcelNumberMatchedVariants:
+          parcelNumberMatches,
+        parcelNumberMatchedPages: [],
+        snippet:
+          matches.length > 0
+            ? snippetAround(
+                hwpx.text,
+                matches[0]
+              )
+            : null,
+        parcelNumberSnippet:
+          parcelNumberMatches.length > 0
+            ? snippetAround(
+                hwpx.text,
+                parcelNumberMatches[0]
+              )
+            : null,
+        status:
+          "text_extracted",
+        sectionCount:
+          hwpx.sectionCount ??
+          0,
+        sections:
+          hwpx.sections ??
+          []
+      };
+    } catch (error) {
+      return {
+        fileType: "hwpx",
+        filePath,
+        displayName,
+        role:
+          roleFromName(
+            displayName || filePath
+          ),
+        textChars: 0,
+        matched: false,
+        matchedVariants: [],
+        matchedPages: [],
+        snippet: null,
+        status:
+          "hwpx_text_error",
+        reason:
+          String(
+            error?.message ||
+            error
+          )
+      };
+    }
   }
 
   if (
@@ -1010,7 +1184,9 @@ export async function analyzeTextApplicability({
   enableOcrFallback = true,
   ocrPsmModes = ["3", "6", "11"],
   ocrScale = 2.5,
-  ocrMaxPages = 24
+  ocrMaxPages = 24,
+  saveMatchedImages = false,
+  imageOutputDir = null
 }) {
   const variants =
     makeJibunVariants(
@@ -1144,8 +1320,10 @@ export async function analyzeTextApplicability({
     if (
       kind === "pdf" ||
       kind === "hwp" ||
+      kind === "hwpx" ||
       kind === "ole" ||
-      kind === "text"
+      kind === "text" ||
+      kind === "image"
     ) {
       const result =
         await analyzeOneTextSource(
@@ -1160,12 +1338,117 @@ export async function analyzeTextApplicability({
             enableOcrFallback,
             ocrPsmModes,
             ocrScale,
-            ocrMaxPages
+            ocrMaxPages,
+            saveMatchedImages,
+            imageOutputDir
           }
         );
 
       if (result) {
         sources.push(result);
+      }
+
+      continue;
+    }
+
+
+    if (kind === "image") {
+      try {
+        const image =
+          await locateImageEvidence(
+            attachment.filePath,
+            {
+              jibun:
+                variants[0] || ""
+            }
+          );
+
+        const imageText =
+          String(
+            image?.text ||
+            ""
+          );
+
+        const matches =
+          findMatches(
+            imageText,
+            variants
+          );
+
+        const parcelNumberMatches =
+          findMatches(
+            imageText,
+            parcelNumberVariants
+          );
+
+        sources.push({
+          fileType: "image",
+          filePath:
+            attachment.filePath,
+          displayName:
+            attachment.displayName,
+          role:
+            roleFromName(
+              attachment.displayName ||
+              attachment.filePath
+            ),
+          textChars:
+            image.textChars || 0,
+          matched:
+            matches.length > 0,
+          matchMethod:
+            matches.length > 0
+              ? "ocr"
+              : null,
+          matchedVariants:
+            matches,
+          matchedPages: [],
+          parcelNumberMatched:
+            parcelNumberMatches.length > 0,
+          parcelNumberMatchedVariants:
+            parcelNumberMatches,
+          parcelNumberMatchedPages: [],
+          snippet:
+            image.snippet ||
+            null,
+          ocrAttempted: true,
+          ocrSkipped: false,
+          warnings: [
+            ...(image.warnings || []),
+            "Image OCR is supporting evidence only; visual/spatial review remains required for map-based applicability."
+          ],
+          status:
+            matches.length > 0
+              ? "ocr_confirmed"
+              : "ocr_completed_not_confirmed"
+        });
+      } catch (error) {
+        sources.push({
+          fileType: "image",
+          filePath:
+            attachment.filePath,
+          displayName:
+            attachment.displayName,
+          role:
+            roleFromName(
+              attachment.displayName ||
+              attachment.filePath
+            ),
+          textChars: 0,
+          matched: false,
+          matchedVariants: [],
+          matchedPages: [],
+          snippet: null,
+          ocrAttempted: true,
+          ocrSkipped: false,
+          status:
+            "image_ocr_error",
+          reason:
+            String(
+              error?.message ||
+              error
+            )
+        });
       }
 
       continue;
@@ -1245,7 +1528,9 @@ export async function analyzeTextApplicability({
                     ? "text"
                     : entry.kind === "hwp"
                       ? "hwp"
-                      : "ole",
+                      : entry.kind === "hwpx"
+                        ? "hwpx"
+                        : "ole",
               variants,
               parcelNumberVariants,
               enableOcrFallback,
@@ -1407,6 +1692,24 @@ export function buildSourcePackage(
               false,
             originalUrl:
               attachment.url ??
+              null,
+            contentType:
+              attachment.contentType ??
+              null,
+            contentLength:
+              attachment.contentLength ??
+              null,
+            contentDisposition:
+              attachment.contentDisposition ??
+              null,
+            downloadError:
+              attachment.downloadError ??
+              null,
+            detailSeq:
+              attachment.detailSeq ??
+              null,
+            detailUrl:
+              attachment.detailUrl ??
               null
           })
         )
