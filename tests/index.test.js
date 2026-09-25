@@ -21,7 +21,7 @@ test("source package preserves downloaded attachment metadata", () => {
           kind:
             "pdf",
           filePath:
-            "cache/TEST-NOTICE/001_원자료.pdf",
+            "downloads/notice/TEST-NOTICE/001_원자료.pdf",
           bytes:
             1234,
           downloaded:
@@ -51,7 +51,7 @@ test("source package preserves downloaded attachment metadata", () => {
 
   assert.equal(
     result.files[0].filePath,
-    "cache/TEST-NOTICE/001_원자료.pdf"
+    "downloads/notice/TEST-NOTICE/001_원자료.pdf"
   );
 });
 
