@@ -329,6 +329,32 @@ function buildCookieHeader(
   return [
     ...map.values()
   ].join("; ");
+
+function mergeCookieHeader(
+  existing,
+  setCookies
+) {
+  const map = new Map();
+
+  for (const part of String(existing ?? "").split(";")) {
+    const value = part.trim();
+    const eq = value.indexOf("=");
+    if (eq > 0) {
+      map.set(value.slice(0, eq).trim(), value);
+    }
+  }
+
+  for (const raw of setCookies) {
+    const first = String(raw ?? "").split(";", 1)[0].trim();
+    const eq = first.indexOf("=");
+    if (eq > 0) {
+      map.set(first.slice(0, eq).trim(), first);
+    }
+  }
+
+  return [...map.values()].join("; ");
+}
+
 }
 
 export async function getEumPublicPage(
@@ -1142,9 +1168,10 @@ export async function findEumDetailPages(
       );
 
     cookie =
-      buildCookieHeader(
+      mergeCookieHeader(
+        cookie,
         setCookies
-      ) || cookie;
+      );
 
     const html =
       decoded.text;
@@ -1311,9 +1338,10 @@ export async function findEumDetailPages(
       );
 
     const detailCookie =
-      buildCookieHeader(
+      mergeCookieHeader(
+        cookie,
         detailSetCookies
-      ) || cookie;
+      );
 
     details.push({
       seq,
