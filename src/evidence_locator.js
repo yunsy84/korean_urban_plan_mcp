@@ -473,7 +473,6 @@ function isTerrainMapPage(text) {
   const normalized = normalize(text);
 
   return (
-    normalized.includes("지형도면고시도") ||
     normalized.includes("지형도면고시도")
   );
 }
