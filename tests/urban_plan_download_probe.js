@@ -208,7 +208,7 @@ async function main() {
 
   const detail = await getNoticeDetail(selectedNotice);
 
-  console.log(`detail seqs resolved: ${detail.details?.length ?? 0}`);
+  console.log(`detail seqs resolved: ${detail.detail?.seqs?.length ?? 0}`);
   console.log(`attachment candidates: ${detail.attachments?.length ?? 0}`);
 
   if (!detail.attachments?.length) {
@@ -218,10 +218,17 @@ async function main() {
   console.log("");
   console.log("=== 4. DOWNLOAD ORIGINAL ATTACHMENTS ===");
 
-  const attachments = await storeAllAttachments(
-    selectedNotice.notice_code,
-    detail.attachments
-  );
+  let attachments;
+  try {
+    attachments = await storeAllAttachments(
+      selectedNotice.notice_code,
+      detail.attachments
+    );
+  } catch (error) {
+    fail(
+      `Original attachment download failed: ${error?.message || String(error)}`
+    );
+  }
 
   for (const attachment of attachments) {
     console.log(
@@ -301,7 +308,18 @@ async function main() {
 
   console.log("");
   console.log("==============================================================================");
-  console.log("RESULT: PASS - PNU -> notice -> detail -> attachment download -> evidence");
+
+  if (applicability.matchCount > 0) {
+    console.log(
+      "RESULT: PASS - PNU -> notice -> detail -> attachment download -> evidence"
+    );
+  } else {
+    console.log(
+      "RESULT: INCOMPLETE - download succeeded but parcel evidence was not confirmed"
+    );
+    process.exitCode = 2;
+  }
+
   console.log("==============================================================================");
 }
 
