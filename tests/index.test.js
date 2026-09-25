@@ -20,6 +20,9 @@ import {
 } from "../src/notice_parser.js";
 
 
+const execFileAsync =
+  promisify(execFile);
+
 test("source package preserves downloaded attachment metadata", () => {
   const result =
     buildSourcePackage({
