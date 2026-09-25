@@ -27,55 +27,112 @@ p = sys.argv[1]
 ole = olefile.OleFileIO(p)
 
 try:
-    if not ole.exists("BodyText/Section0"):
+    section_names = []
+
+    for parts in ole.listdir(
+        streams=True,
+        storages=False
+    ):
+        if (
+            len(parts) == 2
+            and parts[0] == "BodyText"
+            and __import__("re").fullmatch(
+                r"Section\d+",
+                parts[1]
+            )
+        ):
+            section_names.append(parts[1])
+
+    section_names.sort(
+        key=lambda name:
+            int(name[len("Section") :])
+    )
+
+    if not section_names:
         print(json.dumps({
             "ok": False,
-            "reason": "BodyText/Section0 not found"
+            "reason": "BodyText/SectionN not found"
         }, ensure_ascii=False))
         raise SystemExit(0)
 
-    compressed = ole.openstream("BodyText/Section0").read()
-    data = zlib.decompress(compressed, -15)
-
-    pos = 0
     parts = []
+    section_meta = []
 
-    while pos + 4 <= len(data):
-        header = struct.unpack_from("<I", data, pos)[0]
-        pos += 4
+    for section_name in section_names:
+        compressed = ole.openstream(
+            ["BodyText", section_name]
+        ).read()
 
-        tag_id = header & 0x3FF
-        size = (header >> 20) & 0xFFF
+        try:
+            data = zlib.decompress(
+                compressed,
+                -15
+            )
+        except zlib.error:
+            data = zlib.decompress(
+                compressed
+            )
 
-        if size == 0xFFF:
-            if pos + 4 > len(data):
-                break
+        pos = 0
+        section_record_count = 0
 
-            size = struct.unpack_from("<I", data, pos)[0]
+        while pos + 4 <= len(data):
+            header = struct.unpack_from(
+                "<I",
+                data,
+                pos
+            )[0]
             pos += 4
 
-        if pos + size > len(data):
-            break
+            tag_id = header & 0x3FF
+            size = (header >> 20) & 0xFFF
 
-        payload = data[pos:pos + size]
-        pos += size
+            if size == 0xFFF:
+                if pos + 4 > len(data):
+                    break
 
-        if tag_id == 0x43:
-            parts.append(
-                payload.decode("utf-16le", errors="ignore")
-            )
+                size = struct.unpack_from(
+                    "<I",
+                    data,
+                    pos
+                )[0]
+                pos += 4
+
+            if pos + size > len(data):
+                break
+
+            payload = data[
+                pos :
+                pos + size
+            ]
+            pos += size
+
+            if tag_id == 0x43:
+                parts.append(
+                    payload.decode(
+                        "utf-16le",
+                        errors="ignore"
+                    )
+                )
+                section_record_count += 1
+
+        section_meta.append({
+            "name": section_name,
+            "recordCount": section_record_count
+        })
 
     text = "\n".join(parts)
 
     print(json.dumps({
         "ok": True,
         "text": text,
-        "recordCount": len(parts)
+        "recordCount": len(parts),
+        "sectionCount": len(section_names),
+        "sections": section_meta
     }, ensure_ascii=False))
 
 finally:
     ole.close()
-`;
 
 const ZIP_EXTRACT_SCRIPT = String.raw`
 import sys
