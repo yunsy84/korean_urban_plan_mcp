@@ -67,6 +67,7 @@ function requestBufferOnce(
         (res) => {
           const chunks = [];
           let total = 0;
+          let truncated = false;
 
           res.on(
             "data",
@@ -94,6 +95,7 @@ function requestBufferOnce(
                 );
 
                 total += remain;
+                truncated = true;
               } else {
                 chunks.push(chunk);
                 total += chunk.length;
@@ -133,8 +135,7 @@ function requestBufferOnce(
                     chunks
                   ),
 
-                truncated:
-                  total >= maxBytes
+                truncated
               });
             }
           );
