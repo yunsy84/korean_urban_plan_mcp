@@ -747,3 +747,26 @@ cd C:\\AI_BOT_SEO\\korean_urban_plan_mcp
 ### 현재 구조의 의미
 
 최초 Setup이 완료되면 로컬 프로젝트 폴더 자체가 `urban-plan-source-evidence`를 체크아웃한 작업 폴더가 된다. 이후 GitHub에서 코드가 변경되면 사용자는 sync 명령만 실행하면 된다. 다른 복제 폴더나 별도 worktree를 만들지 않는다.
+
+---
+
+## 20. 2026-09-25 로컬 npm test 1차 실패 및 최소 수정
+
+### 실제 Windows 검증 결과
+
+- `npm run build`: 성공.
+- `npm test`: 실패.
+- `src/source_applicability.js:139`: HWP Python template과 ZIP Python template의 경계가 잘못되어 `import json`이 JavaScript로 해석되는 SyntaxError 발생.
+- `tests/dist_sync.test.js`: `scripts/build_dist.js`가 줄바꿈을 실제 LF가 아니라 문자 `\n`으로 생성하여 wrapper 문자열 비교 실패.
+
+### 최소 수정
+
+- `src/source_applicability.js`: HWP Python template 종료를 `ole.close()` 다음에 명시하고 ZIP template을 별도 시작하도록 수정.
+- `scripts/build_dist.js`: runtime wrapper join 구분자를 실제 `"\n"`으로 수정.
+
+### 다음 검증
+
+1. 로컬에서 최신 branch를 sync.
+2. `npm run build`.
+3. `npm test`.
+4. 테스트가 통과하면 MCP 기동과 실제 EUM probe로 이동.
