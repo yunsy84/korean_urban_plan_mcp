@@ -329,6 +329,7 @@ function buildCookieHeader(
   return [
     ...map.values()
   ].join("; ");
+}
 
 function mergeCookieHeader(
   existing,
