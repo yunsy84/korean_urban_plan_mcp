@@ -206,6 +206,28 @@ function classifyAttachment(
   }
 
   if (
+    /\.hwp(?:[?#]|$)/i.test(
+      url
+    ) ||
+    /\bhwp\b/i.test(
+      combined
+    )
+  ) {
+    return "hwp";
+  }
+
+  if (
+    /\.hwpx(?:[?#]|$)/i.test(
+      url
+    ) ||
+    /\bhwpx\b/i.test(
+      combined
+    )
+  ) {
+    return "hwpx";
+  }
+
+  if (
     /\.pdf(?:[?#]|$)/i.test(
       url
     ) ||
