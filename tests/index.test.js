@@ -127,3 +127,210 @@ test("source package preserves attachment download errors without a file path", 
     null
   );
 });
+
+
+test("parcel evidence matches spaced and unspaced jibun notation", async () => {
+  const dir =
+    await fs.mkdtemp(
+      path.join(
+        os.tmpdir(),
+        "urban-plan-jibun-"
+      )
+    );
+
+  const filePath =
+    path.join(
+      dir,
+      "source.txt"
+    );
+
+  await fs.writeFile(
+    filePath,
+    "대상 필지: 수동460-10번지",
+    "utf8"
+  );
+
+  const result =
+    await analyzeTextApplicability({
+      pnu:
+        "4311111200104600010",
+      jibun:
+        "수동 460-10",
+      notice: {
+        notice_code:
+          "TEST-NOTICE",
+        title:
+          "",
+        content:
+          ""
+      },
+      attachments: [
+        {
+          filePath,
+          displayName:
+            "source.txt",
+          kind:
+            "text"
+        }
+      ],
+      noticeDir:
+        dir,
+      enableOcrFallback:
+        false
+    });
+
+  assert.equal(
+    result.status,
+    "CONFIRMED_BY_TEXT"
+  );
+
+  assert.equal(
+    result.matchedSources[0].matchMethod,
+    "native_text"
+  );
+
+  assert.deepEqual(
+    result.matchedSources[0].matchedPages,
+    []
+  );
+});
+
+test("source analysis failure is isolated to the failed attachment", async () => {
+  const result =
+    await analyzeTextApplicability({
+      pnu:
+        "4311111200104600010",
+      jibun:
+        "수동 460-10",
+      notice: {
+        notice_code:
+          "TEST-NOTICE",
+        title:
+          "",
+        content:
+          ""
+      },
+      attachments: [
+        {
+          filePath:
+            path.join(
+              os.tmpdir(),
+              "urban-plan-missing-source-does-not-exist.txt"
+            ),
+          displayName:
+            "missing.txt",
+          kind:
+            "text"
+        }
+      ],
+      noticeDir:
+        os.tmpdir(),
+      enableOcrFallback:
+        false
+    });
+
+  assert.equal(
+    result.sources.length,
+    1
+  );
+
+  assert.equal(
+    result.sources[0].status,
+    "source_analysis_error"
+  );
+
+  assert.equal(
+    result.sources[0].matched,
+    false
+  );
+});
+
+test("internal download request metadata is not exposed by JSON serialization", () => {
+  const attachments =
+    extractAttachmentCandidates(
+      '<a href="javascript:download(\'https://www.eum.go.kr/web/FileDownload.do\',\'/20200423/webcommon/mapboard/test.hwp\')">test.hwp</a>',
+      "https://www.eum.go.kr/web/gs/gv/gvGosiDet.jsp?seq=48400",
+      {
+        cookie:
+          "JSESSIONID=secret-value"
+      }
+    );
+
+  assert.equal(
+    attachments.length,
+    1
+  );
+
+  assert.equal(
+    attachments[0]._download.headers.Cookie,
+    "JSESSIONID=secret-value"
+  );
+
+  const serialized =
+    JSON.stringify(
+      attachments[0]
+    );
+
+  assert.equal(
+    serialized.includes(
+      "secret-value"
+    ),
+    false
+  );
+
+  assert.equal(
+    serialized.includes(
+      "_download"
+    ),
+    false
+  );
+
+  assert.equal(
+    attachments[0].detailSeq,
+    undefined
+  );
+});
+
+test("source package preserves exact attachment download error", () => {
+  const errorMessage =
+    "Attachment body does not look like the requested binary file.";
+
+  const result =
+    buildSourcePackage({
+      noticeCode:
+        "TEST-NOTICE",
+      attachments: [
+        {
+          displayName:
+            "원자료.hwp",
+          kind:
+            "hwp",
+          url:
+            "https://example.invalid/FileDownload.do",
+          filePath:
+            null,
+          downloaded:
+            false,
+          cached:
+            false,
+          downloadError:
+            errorMessage
+        }
+      ]
+    });
+
+  assert.equal(
+    result.preservedOriginalCount,
+    0
+  );
+
+  assert.equal(
+    result.files[0].filePath,
+    null
+  );
+
+  assert.equal(
+    result.files[0].downloadError,
+    errorMessage
+  );
+});
