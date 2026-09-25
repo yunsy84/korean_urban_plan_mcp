@@ -950,6 +950,11 @@ export async function downloadBinary(
         "content-disposition"
       ] ?? "",
 
+    truncated:
+      Boolean(
+        response.truncated
+      ),
+
     body:
       response.body
   };
