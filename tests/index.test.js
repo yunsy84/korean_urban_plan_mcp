@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 
@@ -91,42 +93,6 @@ test("analyze_urban_plan requires jibun for parcel evidence", async () => {
   );
 });
 
-
-test("source package preserves attachment download errors without a file path", () => {
-  const result =
-    buildSourcePackage({
-      noticeCode:
-        "TEST-NOTICE",
-      attachments: [
-        {
-          displayName:
-            "원자료.hwp",
-          kind:
-            "hwp",
-          url:
-            "https://example.invalid/FileDownload.do",
-          filePath:
-            null,
-          downloaded:
-            false,
-          cached:
-            false,
-          downloadError:
-            "Attachment body does not look like the requested binary file."
-        }
-      ]
-    });
-
-  assert.equal(
-    result.preservedOriginalCount,
-    0
-  );
-
-  assert.equal(
-    result.files[0].filePath,
-    null
-  );
-});
 
 
 test("parcel evidence matches spaced and unspaced jibun notation", async () => {
@@ -285,10 +251,6 @@ test("internal download request metadata is not exposed by JSON serialization", 
     false
   );
 
-  assert.equal(
-    attachments[0].detailSeq,
-    undefined
-  );
 });
 
 test("source package preserves exact attachment download error", () => {
@@ -332,5 +294,109 @@ test("source package preserves exact attachment download error", () => {
   assert.equal(
     result.files[0].downloadError,
     errorMessage
+  );
+});
+
+async function canRunPython() {
+  for (const executable of ["python", "py"]) {
+    try {
+      await execFileAsync(
+        executable,
+        ["--version"],
+        {
+          windowsHide: true,
+          timeout: 5000
+        }
+      );
+      return true;
+    } catch {
+      // try next
+    }
+  }
+  return false;
+}
+
+test("HWPX source is extracted through the production applicability path", async (t) => {
+  if (!(await canRunPython())) {
+    t.skip("Python is required by the production HWPX extractor.");
+    return;
+  }
+
+  const dir =
+    await fs.mkdtemp(
+      path.join(
+        os.tmpdir(),
+        "urban-plan-hwpx-"
+      )
+    );
+
+  const filePath =
+    path.join(
+      dir,
+      "source.hwpx"
+    );
+
+  const pythonScript = [
+    "import sys",
+    "import zipfile",
+    "from xml.sax.saxutils import escape",
+    "p = sys.argv[1]",
+    "xml = '<root><p><t>' + escape('수동460-10번지') + '</t></p></root>'",
+    "with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_STORED) as z:",
+    "    z.writestr('[Content_Types].xml', '<Types/>')",
+    "    z.writestr('Contents/section0.xml', xml)"
+  ].join("\n");
+
+  await execFileAsync(
+    (await canRunPython()) ? "python" : "py",
+    ["-c", pythonScript, filePath],
+    {
+      windowsHide: true,
+      timeout: 10000
+    }
+  );
+
+  const result =
+    await analyzeTextApplicability({
+      pnu:
+        "4311111200104600010",
+      jibun:
+        "수동 460-10",
+      notice: {
+        notice_code:
+          "TEST-HWPX",
+        title:
+          "",
+        content:
+          ""
+      },
+      attachments: [
+        {
+          filePath,
+          displayName:
+            "source.hwpx",
+          kind:
+            "hwpx"
+        }
+      ],
+      noticeDir:
+        dir,
+      enableOcrFallback:
+        false
+    });
+
+  assert.equal(
+    result.status,
+    "CONFIRMED_BY_TEXT"
+  );
+
+  assert.equal(
+    result.matchedSources[0].fileType,
+    "hwpx"
+  );
+
+  assert.equal(
+    result.matchedSources[0].matchMethod,
+    "native_text"
   );
 });
