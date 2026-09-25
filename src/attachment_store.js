@@ -340,10 +340,52 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
   };
 }
 
-export async function storeAllAttachments(noticeCode, attachments, options = {}) {
+export async function storeAllAttachments(
+  noticeCode,
+  attachments,
+  {
+    continueOnError = true,
+    ...options
+  } = {}
+) {
   const result = [];
-  for (let i = 0; i < attachments.length; i += 1) {
-    result.push(await storeAttachment(noticeCode, attachments[i], i, options));
+
+  for (
+    let i = 0;
+    i < attachments.length;
+    i += 1
+  ) {
+    try {
+      result.push(
+        await storeAttachment(
+          noticeCode,
+          attachments[i],
+          i,
+          options
+        )
+      );
+    } catch (error) {
+      if (!continueOnError) {
+        throw error;
+      }
+
+      const attachment =
+        attachments[i] ?? {};
+
+      result.push({
+        ...attachment,
+        filePath: null,
+        downloaded: false,
+        cached: false,
+        bytes: 0,
+        downloadError:
+          String(
+            error?.message ||
+            error
+          )
+      });
+    }
   }
+
   return result;
 }
