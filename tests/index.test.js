@@ -112,7 +112,7 @@ test("parcel evidence matches spaced and unspaced jibun notation", async () => {
 
   await fs.writeFile(
     filePath,
-    "대상 필지: 수동460-10번지",
+    "대상 필지: 수동460-10번지 |33.5|33.5",
     "utf8"
   );
 
@@ -153,6 +153,11 @@ test("parcel evidence matches spaced and unspaced jibun notation", async () => {
   assert.equal(
     result.matchedSources[0].matchMethod,
     "native_text"
+  );
+
+  assert.equal(
+    result.matchedSources[0].area.likelyArea,
+    "33.5"
   );
 
   assert.deepEqual(
