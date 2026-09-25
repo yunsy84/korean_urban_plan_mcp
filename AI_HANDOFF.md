@@ -795,3 +795,24 @@ cd C:\\AI_BOT_SEO\\korean_urban_plan_mcp
 2. MCP Inspector 또는 실제 MCP 클라이언트에서 `discover_tools`, `resolve_urban_plan` 호출 확인.
 3. 검증용 PNU로 EUM runtime probe 실행.
 4. 실제 `PNU → jigu_info → notice_code → detail seq → attachments → 원자료 → parcel evidence` 전체 흐름 검증.
+
+
+---
+
+## 22. 2026-09-25 dist 줄바꿈과 core.autocrlf
+
+### 실제 Windows 원인
+
+- 로컬 Git `core.autocrlf=true`.
+- `npm run build`가 `dist/server.js`를 LF로 직접 작성.
+- Git 작업트리는 CRLF를 기대하여 `git status`에서 `M dist/server.js`가 발생.
+- `git diff --ignore-space-at-eol -- dist/server.js` 결과 내용상 차이는 없고 EOL 경고만 확인됨.
+
+### 반영한 최소 수정
+
+- `scripts/build_dist.js`: `node:os`의 `EOL`을 사용하여 플랫폼에 맞는 줄바꿈으로 생성.
+- `tests/dist_sync.test.js`: 비교 시 CRLF를 LF로 정규화하여 내용 기준 회귀 테스트.
+
+### 기대 결과
+
+Windows에서 `npm run build` 후에도 `dist/server.js`가 불필요한 dirty 상태가 되지 않아 `sync_urban_plan.cmd`가 정상적으로 동작해야 한다.
