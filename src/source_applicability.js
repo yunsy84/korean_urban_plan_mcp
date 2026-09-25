@@ -418,6 +418,61 @@ function snippetAround(text, variant) {
   return source.slice(start, end);
 }
 
+
+function extractAreaFromSnippet(
+  snippet,
+  jibun
+) {
+  if (!snippet || !jibun) {
+    return {
+      values: [],
+      likelyArea: null,
+      raw: null
+    };
+  }
+
+  const source = compact(snippet);
+  const normalizedSource = normalize(source);
+  const normalizedTarget = normalize(jibun);
+  const targetIndex = normalizedSource.indexOf(normalizedTarget);
+  let localSource = source;
+
+  if (targetIndex >= 0) {
+    let normalizedCount = 0;
+    let originalIndex = 0;
+
+    for (let i = 0; i < source.length; i += 1) {
+      const piece = normalize(source[i]);
+      normalizedCount += piece.length;
+      if (normalizedCount > targetIndex) {
+        originalIndex = i;
+        break;
+      }
+      originalIndex = i;
+    }
+
+    localSource = source.slice(originalIndex);
+  }
+
+  const match = localSource.match(
+    /(?:\||｜|\s)+(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)\s*(?:\||｜)\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)/
+  );
+
+  if (!match) {
+    return {
+      values: [],
+      likelyArea: null,
+      raw: null
+    };
+  }
+
+  const values = [match[1], match[2]];
+  return {
+    values,
+    likelyArea: match[1],
+    raw: match[0]
+  };
+}
 function roleFromName(name) {
   const value = compact(name).toLowerCase();
 
@@ -804,11 +859,26 @@ async function analyzeOneTextSource(
         allMatches: []
       };
 
+    const nativeSnippet =
+      matches.length > 0
+        ? snippetAround(
+            pdf.text,
+            matches[0]
+          )
+        : null;
+
     return {
       fileType: "pdf",
       filePath,
       displayName,
       role,
+
+      area:
+        extractAreaFromSnippet(
+          nativeSnippet,
+          matches[0] ||
+            variants[0]
+        ),
 
       pageCount:
         pdf.pageCount,
@@ -951,6 +1021,17 @@ async function analyzeOneTextSource(
                 matches[0]
               )
             : null,
+        area:
+          extractAreaFromSnippet(
+            matches.length > 0
+              ? snippetAround(
+                  hwpx.text,
+                  matches[0]
+                )
+              : null,
+            matches[0] ||
+              variants[0]
+          ),
         parcelNumberSnippet:
           parcelNumberMatches.length > 0
             ? snippetAround(
@@ -1070,6 +1151,17 @@ async function analyzeOneTextSource(
                 matches[0]
               )
             : null,
+        area:
+          extractAreaFromSnippet(
+            matches.length > 0
+              ? snippetAround(
+                  hwp.text,
+                  matches[0]
+                )
+              : null,
+            matches[0] ||
+              variants[0]
+          ),
         parcelNumberSnippet:
           parcelNumberMatches.length > 0
             ? snippetAround(
@@ -1162,6 +1254,17 @@ async function analyzeOneTextSource(
               matches[0]
             )
           : null,
+      area:
+        extractAreaFromSnippet(
+          matches.length > 0
+            ? snippetAround(
+                text,
+                matches[0]
+              )
+            : null,
+          matches[0] ||
+            variants[0]
+        ),
       parcelNumberSnippet:
         parcelNumberMatches.length > 0
           ? snippetAround(
@@ -1411,6 +1514,13 @@ export async function analyzeTextApplicability({
           snippet:
             image.snippet ||
             null,
+          area:
+            extractAreaFromSnippet(
+              image.snippet ||
+                null,
+              matches[0] ||
+                variants[0]
+            ),
           ocrAttempted: true,
           ocrSkipped: false,
           warnings: [
@@ -1584,8 +1694,23 @@ export async function analyzeTextApplicability({
     }
   }
 
-  const matches =
+  const metadataMatches =
     sources.filter(
+      source =>
+        source.fileType ===
+          "notice_metadata" &&
+        source.matched
+    );
+
+  const evidenceSources =
+    sources.filter(
+      source =>
+        source.fileType !==
+          "notice_metadata"
+    );
+
+  const matches =
+    evidenceSources.filter(
       source =>
         source.matched
     );
@@ -1612,12 +1737,17 @@ export async function analyzeTextApplicability({
     status =
       "CONFIRMED_BY_OCR";
   } else if (
-    sources.length === 0
+    metadataMatches.length > 0
+  ) {
+    status =
+      "NOTICE_METADATA_MATCHED";
+  } else if (
+    evidenceSources.length === 0
   ) {
     status =
       "TEXT_SOURCE_UNAVAILABLE";
   } else if (
-    sources.some(
+    evidenceSources.some(
       source =>
         source.status ===
           "text_layer_unavailable_ocr_not_confirmed" &&
@@ -1664,9 +1794,24 @@ export async function analyzeTextApplicability({
     },
     matchCount:
       matches.length,
+
+    metadataMatchCount:
+      metadataMatches.length,
+
+    sourceEvidenceCount:
+      evidenceSources.length,
+
+    sourceAnalysisErrorCount:
+      evidenceSources.filter(
+        source =>
+          source.status ===
+          "source_analysis_error"
+      ).length,
     ocrSummary,
     matchedSources:
       matches,
+
+    metadataMatches,
     parcelNumberCandidateCount:
       sources.filter(
         source =>
