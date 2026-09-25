@@ -222,6 +222,7 @@ function compact(value) {
 
 function normalize(value) {
   return compact(value)
+    .replace(/[\\s]+/gu, "")
     .replace(
       /[|｜,，:：.;·ㆍ"'"“”‘’()[\]{}<>《》「」『』/\\_-]/g,
       ""
