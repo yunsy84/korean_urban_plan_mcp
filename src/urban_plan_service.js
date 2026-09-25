@@ -812,14 +812,18 @@ export async function analyzeUrbanPlan(
       server
     });
 
+  const firstAttachmentPath =
+    source.attachments.find(
+      attachment =>
+        attachment.filePath
+    )?.filePath || null;
+
   const noticeDir =
-    path.dirname(
-      source.attachments.find(
-        attachment =>
-          attachment.filePath
-      )?.filePath ||
-      ""
-    );
+    firstAttachmentPath
+      ? path.dirname(
+          firstAttachmentPath
+        )
+      : null;
 
   const evidenceImageDir =
     imageOutputDir ||
