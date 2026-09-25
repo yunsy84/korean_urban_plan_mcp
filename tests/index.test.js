@@ -86,3 +86,40 @@ test("analyze_urban_plan requires jibun for parcel evidence", async () => {
     /requires jibun/
   );
 });
+
+
+test("source package preserves attachment download errors without a file path", () => {
+  const result =
+    buildSourcePackage({
+      noticeCode:
+        "TEST-NOTICE",
+      attachments: [
+        {
+          displayName:
+            "원자료.hwp",
+          kind:
+            "hwp",
+          url:
+            "https://example.invalid/FileDownload.do",
+          filePath:
+            null,
+          downloaded:
+            false,
+          cached:
+            false,
+          downloadError:
+            "Attachment body does not look like the requested binary file."
+        }
+      ]
+    });
+
+  assert.equal(
+    result.preservedOriginalCount,
+    0
+  );
+
+  assert.equal(
+    result.files[0].filePath,
+    null
+  );
+});
