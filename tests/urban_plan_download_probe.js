@@ -107,7 +107,7 @@ Without a selector, the probe stops after printing the PNU's resolved notice lis
     fail(`Unknown argument: ${token}`);
   }
 
-  if (!/^\\d{19}$/.test(options.pnu)) {
+  if (!/^\d{19}$/.test(options.pnu)) {
     fail("--pnu must be exactly 19 digits.");
   }
 
