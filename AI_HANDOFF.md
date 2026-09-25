@@ -897,3 +897,39 @@ ed024931c1214fbd5cd15d169afb14ab8200bcb0
 새 대화에서는 저장소 `yunsy84/korean_urban_plan_mcp`와 브랜치 `urban-plan-source-evidence`의 실제 현재 HEAD를 먼저 확인하고, 그 다음 `AI_HANDOFF.md`와 실제 소스 파일을 읽는다.
 
 이 문서에 기록된 `ed024931...`은 2026-09-25에 확인한 역사적 상태값이며, 이후 새 커밋이 생기면 현재 HEAD는 달라질 수 있다.
+
+
+---
+
+## 24. 2026-09-25 운영 코드 직접 Evidence 검증 단계
+
+현재 단계에서는 기존 `tests/urban_plan_evidence_extractor.js`의 독립적인 중복 로직을 다시 검증하는 것이 아니라, 실제 운영 코드인 `src/source_applicability.js`를 직접 호출하여 확보된 시행지침/원자료 파일을 검증한다.
+
+### 추가 파일
+
+- `tests/source_applicability_probe.js`
+  - 로컬 원자료 파일 1개를 직접 입력받는다.
+  - `analyzeTextApplicability()`를 직접 호출한다.
+  - 지번/PNU match, native text, OCR fallback, 문서 role, status, snippet을 실제 운영 코드 기준으로 출력한다.
+
+### 실행 목적
+
+시행지침 파일에 대상 지역/지번이 실제로 존재하는지 다음 기준으로 확인한다.
+
+```text
+실제 원자료
+ ↓
+src/source_applicability.js
+ ↓
+파일 형식 판별
+ ↓
+원문 추출
+ ↓
+지번/PNU 탐색
+ ↓
+필지 Evidence
+ ↓
+status / snippet / matched source
+```
+
+이 결과를 근거로 운영 코드에 필요한 수정만 수행한다. 기존 EUM runtime probe는 이 단계에서 반복하지 않는다.
