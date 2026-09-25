@@ -191,30 +191,133 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
     }
   }
 
-  const result =
-    await downloadBinary(
-      attachment.url,
-      {
-        method:
-          internalRequest?.method ||
-          "GET",
+  let result;
 
-        headers:
-          internalRequest?.headers ||
-          {},
+  try {
+    result =
+      await downloadBinary(
+        attachment.url,
+        {
+          method:
+            internalRequest?.method ||
+            "GET",
 
-        body:
-          internalRequest?.body ||
-          null,
+          headers:
+            internalRequest?.headers ||
+            {},
 
-        referer:
-          internalRequest?.headers?.Referer ||
-          attachment.url
-      }
+          body:
+            internalRequest?.body ||
+            null,
+
+          referer:
+            internalRequest?.headers?.Referer ||
+            attachment.url
+        }
+      );
+
+    const magic =
+      detectMagic(result.body);
+
+    validateDownloadedBody(
+      attachment,
+      result,
+      magic
+    );
+  } catch (primaryError) {
+    const expected =
+      expectedTypeFromAttachment(
+        attachment
+      );
+
+    if (
+      expected !== "hwp" ||
+      !internalRequest ||
+      !/FileDownload\.do/i.test(
+        attachment.url || ""
+      )
+    ) {
+      throw primaryError;
+    }
+
+    const form =
+      new URLSearchParams(
+        internalRequest.body || ""
+      );
+
+    const fileValue =
+      form.get("file");
+
+    if (!fileValue) {
+      throw primaryError;
+    }
+
+    const fallbackUrl =
+      new URL(
+        attachment.url
+      );
+
+    fallbackUrl.search = "";
+
+    fallbackUrl.searchParams.set(
+      "isGosi",
+      "Y"
     );
 
+    fallbackUrl.searchParams.set(
+      "file",
+      fileValue
+    );
+
+    const fallbackHeaders = {
+      Accept:
+        "*/*",
+
+      Referer:
+        internalRequest.headers?.Referer ||
+        attachment.url,
+
+      Origin:
+        "https://www.eum.go.kr"
+    };
+
+    if (
+      internalRequest.headers?.Cookie
+    ) {
+      fallbackHeaders.Cookie =
+        internalRequest.headers.Cookie;
+    }
+
+    const fallbackResult =
+      await downloadBinary(
+        fallbackUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            fallbackHeaders,
+
+          referer:
+            fallbackHeaders.Referer
+        }
+      );
+
+    const fallbackMagic =
+      detectMagic(
+        fallbackResult.body
+      );
+
+    validateDownloadedBody(
+      attachment,
+      fallbackResult,
+      fallbackMagic
+    );
+
+    result = fallbackResult;
+  }
+
   const magic = detectMagic(result.body);
-  validateDownloadedBody(attachment, result, magic);
   const extension = resolveExtension(magic, result.contentType, attachment.kind);
 
   if (!path.extname(displayName)) displayName += extension;
