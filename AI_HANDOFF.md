@@ -933,3 +933,47 @@ status / snippet / matched source
 ```
 
 이 결과를 근거로 운영 코드에 필요한 수정만 수행한다. 기존 EUM runtime probe는 이 단계에서 반복하지 않는다.
+
+
+---
+
+## 25. 2026-09-25 원자료 다운로드 경로 및 재검증 흐름
+
+현재 실제 다운로드 경로는 설정값을 기준으로 한다.
+
+- 설정: `config/urban_plan.config.json`
+- `downloadRoot`: `downloads`
+- 프로젝트 루트: `C:\\AI_BOT_SEO\\korean_urban_plan_mcp`
+- 실제 원자료 저장 루트:
+  `C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads`
+
+`src/attachment_store.js`는 더 이상 `cache/notice`를 직접 사용하지 않고 `loadConfig().downloadRoot`를 사용한다.
+
+고시별 첨부파일은 다음 형태로 저장된다.
+
+```
+downloads/
+  notice/
+    <notice_code>/
+      001_...
+      002_...
+```
+
+### 처음부터 다시 검증하는 기준 흐름
+
+검증용 sample PNU:
+- PNU: `4413310300111160000`
+- 지번: `백석동 1116`
+
+실행 흐름:
+
+1. PNU로 EUM 도시계획 관계 및 고시 목록 조회
+2. 실제 반환된 고시 중 검증할 고시를 선택
+3. 해당 고시의 EUM detail seq를 실제 페이지에서 발견
+4. detail의 첨부 원자료 후보를 추출
+5. 첨부파일을 `downloads/notice/<notice_code>/`에 원자료로 저장
+6. 저장된 원자료를 `src/source_applicability.js`로 분석
+7. 지번/PNU evidence, native text/OCR 여부, matched source, snippet을 확인
+8. 최종 결과에서 원자료 파일 경로를 그대로 보존
+
+첨부파일이 실제로 존재하지 않는 상태에서 이전 캐시나 가정된 파일 경로를 이용하여 적용성 검증을 진행하지 않는다.
