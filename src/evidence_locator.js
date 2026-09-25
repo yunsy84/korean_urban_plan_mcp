@@ -1387,6 +1387,7 @@ export async function locateImageEvidence(
     return {
       fileType: "image",
       filePath: imagePath,
+      ocrText: text,
       targetJibun: jibun,
       targetVariants: variants,
       jibunHits,
