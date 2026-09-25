@@ -229,7 +229,7 @@ with zipfile.ZipFile(zip_path, "r") as z:
 
         kind, ext = detect(head, info.filename)
 
-        if kind not in ("pdf", "ole", "text", "hwp"):
+        if kind not in ("pdf", "ole", "text", "hwp", "hwpx"):
             continue
 
         out_path = out_dir / ("source_" + str(index).zfill(3) + ext)
