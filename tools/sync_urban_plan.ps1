@@ -39,6 +39,7 @@ function GitRun([string[]]$Args) {
 if (-not (Test-Path $RepoPath)) { throw "프로젝트 폴더가 없습니다: $RepoPath" }
 if (-not (Test-Path (Join-Path $RepoPath ".git"))) { throw "Git 저장소가 아닙니다: $RepoPath" }
 $script:GitExe = Resolve-GitExe
+$env:GIT_PAGER = "cat"
 $root = GitOut @("-C", $RepoPath, "rev-parse", "--show-toplevel")
 if ([IO.Path]::GetFullPath($root).TrimEnd("\") -ne [IO.Path]::GetFullPath($RepoPath).TrimEnd("\")) { throw "지정 폴더가 Git repository root가 아닙니다." }
 $remote = GitOut @("-C", $RepoPath, "remote", "get-url", "origin")
