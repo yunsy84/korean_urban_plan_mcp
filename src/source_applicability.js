@@ -1739,6 +1739,12 @@ export function buildSourcePackage(
               null,
             detailUrl:
               attachment.detailUrl ??
+              null,
+            downloadMethod:
+              attachment.downloadMethod ??
+              null,
+            downloadFile:
+              attachment.downloadFile ??
               null
           })
         )
