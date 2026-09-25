@@ -787,3 +787,14 @@ urban-plan-source-evidence
 - working tree: `Dirty = False`
 
 따라서 현재 이 저장소는 로컬 MCP 폴더, GitHub 저장소, 동기화 스크립트가 모두 `korean_urban_plan_mcp` 이름으로 일치하는 상태이다.
+
+
+## 원자료 다운로드 경로
+
+고시 첨부 원자료는 `config/urban_plan.config.json`의 `downloadRoot`를 사용하며 현재 값은 `downloads`이다. 프로젝트 루트 기준 실제 저장 위치는:
+
+```
+C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads
+```
+
+고시별로 `downloads/notice/<notice_code>/` 아래에 원자료가 저장된다. 검증은 캐시된 파일을 가정하지 않고 **PNU → 고시 → detail → 첨부 다운로드 → source_applicability evidence** 순서로 실제 원자료를 확보한 뒤 수행한다.
