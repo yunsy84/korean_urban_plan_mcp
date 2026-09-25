@@ -812,6 +812,26 @@ export async function analyzeUrbanPlan(
       server
     });
 
+  const noticeDir =
+    path.dirname(
+      source.attachments.find(
+        attachment =>
+          attachment.filePath
+      )?.filePath ||
+      ""
+    );
+
+  const evidenceImageDir =
+    imageOutputDir ||
+    (
+      noticeDir
+        ? path.join(
+            noticeDir,
+            "evidence_images"
+          )
+        : null
+    );
+
   const applicability =
     await analyzeTextApplicability({
       pnu,
@@ -820,14 +840,10 @@ export async function analyzeUrbanPlan(
         source.notice,
       attachments:
         source.attachments,
-      noticeDir:
-        path.dirname(
-          source.attachments.find(
-            attachment =>
-              attachment.filePath
-          )?.filePath ||
-          ""
-        )
+      noticeDir,
+      saveMatchedImages,
+      imageOutputDir:
+        evidenceImageDir
     });
 
   const sourcePackage =
@@ -861,7 +877,19 @@ export async function analyzeUrbanPlan(
         source.notice.organ_nm,
 
       title:
-        source.notice.title
+        source.notice.title,
+
+      org_cd:
+        source.notice.org_cd,
+
+      ucode:
+        source.notice.ucode,
+
+      ucode_nm:
+        source.notice.ucode_nm,
+
+      wtnnc_cd:
+        source.notice.wtnnc_cd
     },
 
     applicability,
