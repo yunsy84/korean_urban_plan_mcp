@@ -15,6 +15,11 @@ import {
   analyzeUrbanPlan
 } from "../src/urban_plan_service.js";
 
+import {
+  extractAttachmentCandidates
+} from "../src/notice_parser.js";
+
+
 test("source package preserves downloaded attachment metadata", () => {
   const result =
     buildSourcePackage({
@@ -302,7 +307,7 @@ test("source package preserves exact attachment download error", () => {
   );
 });
 
-async function canRunPython() {
+async function findPythonExecutable() {
   for (const executable of ["python", "py"]) {
     try {
       await execFileAsync(
@@ -313,16 +318,19 @@ async function canRunPython() {
           timeout: 5000
         }
       );
-      return true;
+      return executable;
     } catch {
       // try next
     }
   }
-  return false;
+
+  return null;
 }
 
 test("HWPX source is extracted through the production applicability path", async (t) => {
-  if (!(await canRunPython())) {
+  const pythonExecutable = await findPythonExecutable();
+
+  if (!pythonExecutable) {
     t.skip("Python is required by the production HWPX extractor.");
     return;
   }
@@ -353,7 +361,7 @@ test("HWPX source is extracted through the production applicability path", async
   ].join("\n");
 
   await execFileAsync(
-    (await canRunPython()) ? "python" : "py",
+    pythonExecutable,
     ["-c", pythonScript, filePath],
     {
       windowsHide: true,
