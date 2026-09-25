@@ -1466,21 +1466,17 @@ export async function analyzeTextApplicability({
             }
           );
 
-        const imageText =
-          String(
-            image?.text ||
-            ""
-          );
-
         const matches =
-          findMatches(
-            imageText,
-            variants
-          );
+          Array.isArray(
+            image?.jibunHits
+          )
+            ? image.jibunHits
+            : [];
 
         const parcelNumberMatches =
           findMatches(
-            imageText,
+            image?.ocrText ||
+              "",
             parcelNumberVariants
           );
 
