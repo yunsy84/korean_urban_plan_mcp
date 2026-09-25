@@ -1501,7 +1501,7 @@ export async function analyzeTextApplicability({
             matches.length > 0,
           matchMethod:
             matches.length > 0
-              ? "ocr"
+              ? "image_ocr"
               : null,
           matchedVariants:
             matches,
@@ -1737,6 +1737,15 @@ export async function analyzeTextApplicability({
     status =
       "CONFIRMED_BY_OCR";
   } else if (
+    matches.some(
+      source =>
+        source.matchMethod ===
+        "image_ocr"
+    )
+  ) {
+    status =
+      "IMAGE_OCR_MATCHED_REQUIRES_VISUAL_REVIEW";
+  } else if (
     metadataMatches.length > 0
   ) {
     status =
@@ -1900,6 +1909,9 @@ export function buildSourcePackage(
       String(
         noticeCode ?? ""
       ),
+    attachmentCount:
+      files.length,
+
     preservedOriginalCount:
       files.filter(
         file =>
@@ -1907,6 +1919,15 @@ export function buildSourcePackage(
             file.filePath
           )
       ).length,
+
+    failedDownloadCount:
+      files.filter(
+        file =>
+          Boolean(
+            file.downloadError
+          )
+      ).length,
+
     files
   };
 }
