@@ -32,15 +32,19 @@
 
 브랜치의 **실제 현재 HEAD**다.
 
-이 문서에는 고정된 "최신 커밋 SHA"를 기준값으로 두지 않는다.
+이 문서에 기록되는 HEAD SHA는 **기록 당시의 확인값일 뿐 영구 기준값이 아니다.**
+새 커밋이 생기면 HEAD는 바뀐다.
 
-새 대화에서 반드시:
+따라서 새 대화에서 반드시:
 1. 지정 브랜치가 존재하는지 확인
-2. 브랜치의 현재 HEAD 확인
-3. 그 HEAD의 실제 파일 트리 확인
-4. 필요한 실제 소스 파일을 읽은 후 작업 시작
+2. **그 시점의 실제 현재 HEAD SHA를 다시 조회**
+3. 그 HEAD의 실제 파일 트리를 확인
+4. 필요한 실제 소스 파일을 해당 HEAD에서 읽은 후 작업 시작
 
 순서로 진행한다.
+
+`AI_HANDOFF.md`에 적힌 과거 SHA를 보고 그 커밋으로 되돌아가거나,
+그 SHA를 현재 상태라고 고정해서는 안 된다.
 
 ---
 
@@ -127,6 +131,30 @@ V-World 기반:
 
 ---
 
+## 새 대화에서의 해석 주의사항
+
+사용자가 다음과 같이 지시할 수 있다.
+
+```text
+yunsy84/test_file의 urban-plan-source-evidence 브랜치와
+AI_HANDOFF.md를 현재 작업 기준으로 사용하라.
+실제 코드를 먼저 확인하고 작업을 이어가라.
+```
+
+이 지시는 다음을 의미한다.
+
+- GitHub 브랜치의 **실제 현재 HEAD를 먼저 조회**한다.
+- 이 문서의 SHA는 현재 상태를 영구 고정하는 값으로 사용하지 않는다.
+- 이 문서에 적힌 과거/기록용 상태와 실제 최신 코드가 다르면 실제 최신 코드를 우선한다.
+- README의 오래된 파일 목록을 보고 현재 구조를 복원하지 않는다.
+- 테스트 파일이 존재한다는 사실과 실제 테스트 통과를 동일하게 취급하지 않는다.
+- GitHub 원격 브랜치와 사용자의 Windows 로컬 프로젝트 상태를 동일하다고 가정하지 않는다.
+- 실제 실행 결과가 없는 경우 성공을 단정하지 않는다.
+- 코드 흐름을 설명할 때 `source_applicability.js`와 `evidence_locator.js`의 실제 호출 관계를 유지한다.
+- 작업 전 실제 관련 파일을 읽고, 필요 이상으로 전체 프로젝트를 임의 재구성하지 않는다.
+
+---
+
 ## 4. 절대 지켜야 하는 개발 원칙
 
 1. 특정 주소/PNU/고시번호를 하드코딩하지 않는다.
@@ -187,6 +215,47 @@ V-World 기반:
 - 24페이지 초과 PDF는 OCR을 건너뜀
 - `ocrSummary`에 attempted / skipped / skippedReasons 기록
 - OCR을 건너뛴 파일을 잘못 `OCR_NOT_CONFIRMED`로 표시하지 않도록 수정됨
+
+### 실제 코드 흐름에 대한 주의
+
+현재 핵심 실행 흐름을 개념적으로 다음처럼 이해한다.
+
+```text
+PNU + jibun
+ ↓
+urban_plan_service.js
+ ↓
+EUM 공개 경로 / MapPlan 관계 확인
+ ↓
+고시 식별
+ ↓
+notice_parser.js
+ ↓
+첨부파일 후보 추출
+ ↓
+attachment_store.js
+ ↓
+원본 첨부 저장
+ ↓
+source_applicability.js
+ ├─ PDF native text
+ ├─ HWP/ZIP text
+ ├─ 조건부 OCR
+ └─ evidence_locator.js
+      ↓
+      필지 지번 / 문서 근거 위치 탐색
+ ↓
+urban_plan_service.js의 최종 반환
+ ↓
+MCP 반환
+```
+
+**중요:** `evidence_locator.js`가 `source_applicability.js` 다음에 별도의 독립 실행 단계로 존재하여 `urban_plan_service.js`를 다시 호출하는 구조라고 해석하지 않는다.
+
+실제 코드상 `source_applicability.js`가 `evidence_locator.js`의 기능을 사용하고,
+그 결과가 `urban_plan_service.js`의 최종 분석 결과에 포함된다.
+
+따라서 문서에 실행 흐름을 설명할 때는 위 관계를 기준으로 한다.
 
 ### 도시계획 서비스
 
