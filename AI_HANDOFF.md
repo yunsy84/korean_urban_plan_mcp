@@ -1146,3 +1146,37 @@ PNU
 ```
 순으로 확인한다.
 
+
+
+### 2026-09-25 전체 프로브 대조 후 추가 보정
+
+후속 교차점검에서 다음 연결 누락을 추가로 수정했다.
+
+- `evidence_locator.locateImageEvidence()`는 OCR 전체 문자열이 아니라 `jibunHits`를 주된 필지 매칭 결과로 반환한다. 운영 `source_applicability.js`가 존재하지 않는 `image.text`를 읽던 부분을 실제 반환 구조에 맞게 수정했다.
+- `locateImageEvidence()`가 OCR 원문을 필요시 재검증할 수 있도록 내부 `ocrText`를 함께 반환한다.
+- HWP/HWPX fallback 분류에서 파일명 suffix가 모호한 경우에도 `.hwp`와 `.hwpx`를 별도로 판정하도록 정리했다.
+- `notice_parser.js`의 내부 `_download` 요청은 계속 non-enumerable로 유지하면서, `getNoticeDetail()`의 trace 객체 생성 과정에서 다시 보존되도록 확인했다.
+- EUM detail을 여러 건 순차 조회할 때 앞 detail 응답의 새 session Cookie를 다음 detail 요청에도 전달하도록 수정했다.
+- `requestBuffer()`의 다운로드 크기 제한은 정확히 최대 크기에 도달한 정상 응답을 잘린 것으로 오인하지 않도록 `truncated`를 실제 초과시에만 true로 기록한다.
+- `analyzeUrbanPlan()`에서 첨부가 없을 때 가짜 현재 경로(`.`)를 noticeDir로 사용하지 않도록 수정했다.
+
+### 현재 확인된 운영 연결
+
+```
+server.js
+  ↓
+urban_plan_service.js
+  ↓
+eum_source_client.js
+  ↓
+notice_parser.js
+  ↓
+attachment_store.js
+  ↓
+source_applicability.js
+  ↓
+evidence_locator.js
+```
+
+회귀 테스트는 `index.test.js` 9개 + `dist_sync.test.js` 1개로 총 10개 정의이며, 이번 변경 후 Windows 실행 결과는 아직 확보하지 않았다.
+
