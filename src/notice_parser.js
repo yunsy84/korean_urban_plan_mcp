@@ -423,7 +423,15 @@ export function extractAttachmentCandidates(
         anchor.text ||
         null,
 
-      url
+      url,
+
+      downloadMethod:
+        request?.method ??
+        null,
+
+      downloadFile:
+        anchor.download?.file ??
+        null
     };
 
     if (request) {
