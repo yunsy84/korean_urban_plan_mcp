@@ -1343,6 +1343,9 @@ export async function findEumDetailPages(
         detailSetCookies
       );
 
+    cookie =
+      detailCookie;
+
     details.push({
       seq,
       url:
