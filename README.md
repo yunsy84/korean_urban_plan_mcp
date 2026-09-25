@@ -442,7 +442,7 @@ tmp/
 - 특정 PC의 절대경로를 소스 코드에 하드코딩하지 않음
 - 로컬 데이터 경로가 필요한 경우 설정/환경변수로 분리
 
-현재 `.gitignore`는 기본적인 node_modules / env / log만 제외하므로, 대용량 데이터 구조를 실제로 확장할 때는 로컬 데이터·cache·downloads·생성 index의 Git 제외 정책을 함께 정리해야 합니다.
+현재 `.gitignore`는 `node_modules`, 환경파일/로그 및 로컬 원자료 다운로드(`downloads/*`)를 제외합니다. `data/`, `index/`, OCR 결과 등 생성 데이터는 실제 사용 범위를 확인하면서 별도 Git 추적 정책을 정합니다.
 
 ---
 
