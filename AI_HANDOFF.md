@@ -1021,3 +1021,30 @@ downloads/
 - 기존 요청 method/header/body는 그대로 재사용
 
 이 변경은 EUM endpoint나 요청 파라미터를 바꾸는 것이 아니라 일시적 연결 재설정에 대한 안정성 보완이다.
+
+
+### 2026-09-25 기존 프로브 로직을 운영 코드에 적용한 결과
+
+기존 `tests/urban_plan_evidence_extractor.js`의 필지 문자열 정규화와 현재 `src/source_applicability.js`를 비교한 결과, 운영 코드의 `normalize()`가 공백을 제거하지 않아 프로브보다 약한 비교를 수행하고 있었다.
+
+예:
+- 입력: `수동 460-10`
+- 원자료: `수동460-10번지`
+
+기존 프로브는 공백까지 제거하여 동일하게 비교할 수 있었으나 운영 코드는 놓칠 수 있었다.
+
+반영:
+- `src/source_applicability.js`의 `normalize()`에서 whitespace를 제거하도록 수정.
+- 회귀 테스트를 `tests/index.test.js`에 추가하여 `수동 460-10` ↔ `수동460-10번지` 매칭을 검증.
+
+첨부 다운로드는 기존 프로브에서 실제로 검증된 HWP 성공 경로가 없었으므로 추측성 `FileDownload.do` GET fallback을 제거했다.
+- 운영 코드는 EUM detail에서 추출한 실제 `POST FileDownload.do` metadata를 그대로 사용한다.
+- 검증되지 않은 방식은 추가하지 않는다.
+- 기존 프로브의 "첨부 하나가 실패해도 다른 첨부를 계속 확인" 방식은 `storeAllAttachments()`에 `continueOnError=true`로 반영했다.
+- 실패한 첨부는 `downloadError`와 함께 source package에 남기고, 정상 다운로드된 PDF/HWP 등의 분석은 계속 진행한다.
+
+따라서 현재 단계의 다음 실제 검증은 EUM 통신 재검증이 아니라:
+1. `npm test`
+2. 기존에 확보했던 실제 원자료가 있는 경우 `source_applicability.js`의 필지 매칭
+3. 정상 PDF가 HWP 실패 때문에 전체 분석을 막지 않는지 확인
+순이다.
