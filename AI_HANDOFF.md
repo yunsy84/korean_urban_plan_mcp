@@ -16,9 +16,9 @@
 
 ### 현재 GitHub 저장소
 
-`yunsy84/test_file`
+`yunsy84/korean_urban_plan_mcp`
 
-> 저장소 이름은 아직 `test_file`이며, 추후 `korean_urban_plan_mcp`로 변경할 예정.
+> 2026-09-25에 기존 `test_file` 저장소를 `korean_urban_plan_mcp`로 이름 변경했다. 기존 브랜치와 커밋 이력은 유지되며, 현재 로컬 origin도 새 저장소 URL을 가리킨다.
 
 ### 현재 작업 브랜치
 
@@ -28,7 +28,7 @@
 
 현재 작업 기준은 항상 GitHub의:
 
-`yunsy84/test_file` → `urban-plan-source-evidence`
+`yunsy84/korean_urban_plan_mcp` → `urban-plan-source-evidence`
 
 브랜치의 **실제 현재 HEAD**다.
 
@@ -482,7 +482,7 @@ GitHub 최신 브랜치에서 `tests/index.test.js`가 현재 아키텍처에 �
 **1순위 — 지정 GitHub 브랜치의 실제 현재 코드**
 
 - 브랜치: `urban-plan-source-evidence`
-- 저장소: `yunsy84/test_file`
+- 저장소: `yunsy84/korean_urban_plan_mcp`
 - 실제 현재 HEAD를 새로 조회한다.
 - 필요한 파일은 해당 HEAD에서 직접 읽는다.
 
@@ -692,7 +692,7 @@ GitHub 원격 브랜치의 현재 코드
 
 - `tools/sync_urban_plan.ps1`
   - Git 실행 파일을 PATH, 일반 Git 설치 경로, GitHub Desktop의 embedded Git 순으로 탐색.
-  - `origin` URL이 `https://github.com/yunsy84/test_file.git`와 다르면 중단.
+  - `origin` URL이 `https://github.com/yunsy84/korean_urban_plan_mcp.git`와 다르면 중단.
   - working tree가 dirty이면 중단하고 로컬 변경을 보존.
   - `git fetch origin urban-plan-source-evidence` 수행.
   - Setup 시 대상 로컬 브랜치를 만들거나 기존 브랜치로 전환.
@@ -816,3 +816,84 @@ cd C:\\AI_BOT_SEO\\korean_urban_plan_mcp
 ### 기대 결과
 
 Windows에서 `npm run build` 후에도 `dist/server.js`가 불필요한 dirty 상태가 되지 않아 `sync_urban_plan.cmd`가 정상적으로 동작해야 한다.
+
+
+---
+
+## 23. 2026-09-25 GitHub 저장소 이름 변경 완료 및 최종 동기화 상태
+
+### 변경 내용
+
+기존 GitHub 저장소:
+
+```text
+yunsy84/test_file
+```
+
+을 다음으로 변경했다.
+
+```text
+yunsy84/korean_urban_plan_mcp
+```
+
+기존 로컬 프로젝트 폴더는 그대로 유지했다.
+
+```text
+C:\AI_BOT_SEO\korean_urban_plan_mcp
+```
+
+로컬 origin을 다음 주소로 재설정했다.
+
+```text
+https://github.com/yunsy84/korean_urban_plan_mcp.git
+```
+
+### 실제 Git 작업
+
+2026-09-25에 다음 작업을 실제 실행하여 확인했다.
+
+1. `git remote set-url origin https://github.com/yunsy84/korean_urban_plan_mcp.git`
+2. `git fetch origin` 성공.
+3. 원격 `urban-plan-source-evidence` 브랜치가 로컬보다 1커밋 앞선 상태를 확인.
+4. `git pull --ff-only origin urban-plan-source-evidence` 성공.
+5. `tools/sync_urban_plan.ps1`의 ExpectedRemote 값을 새 저장소 URL로 변경.
+6. 변경 커밋 `ed024931c1214fbd5cd15d169afb14ab8200bcb0` 생성.
+7. `git push origin urban-plan-source-evidence` 성공.
+8. `.\tools\sync_urban_plan.cmd` 실행 결과 `[SYNC OK]`.
+
+최종 검증값:
+
+```text
+Repository :
+C:\AI_BOT_SEO\korean_urban_plan_mcp
+
+Origin :
+https://github.com/yunsy84/korean_urban_plan_mcp.git
+
+Branch :
+urban-plan-source-evidence
+
+Dirty :
+False
+
+Local HEAD :
+ed024931c1214fbd5cd15d169afb14ab8200bcb0
+
+Remote HEAD :
+ed024931c1214fbd5cd15d169afb14ab8200bcb0
+```
+
+### 구조 영향
+
+- 로컬 MCP 폴더명은 변경하지 않았다.
+- 기존 `.git`과 Git 이력은 유지된다.
+- `urban-plan-source-evidence` 브랜치를 계속 사용한다.
+- `agent_system`의 MCP 실행 경로는 변경하지 않았다.
+- 다른 MCP의 Git 저장소나 MCP 연결은 변경하지 않았다.
+- 이후 동기화 기준 저장소명은 `korean_urban_plan_mcp`이다.
+
+### 문서 기준
+
+새 대화에서는 저장소 `yunsy84/korean_urban_plan_mcp`와 브랜치 `urban-plan-source-evidence`의 실제 현재 HEAD를 먼저 확인하고, 그 다음 `AI_HANDOFF.md`와 실제 소스 파일을 읽는다.
+
+이 문서에 기록된 `ed024931...`은 2026-09-25에 확인한 역사적 상태값이며, 이후 새 커밋이 생기면 현재 HEAD는 달라질 수 있다.
