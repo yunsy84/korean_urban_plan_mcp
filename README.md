@@ -631,6 +631,8 @@ cd C:\AI_BOT_SEO\korean_urban_plan_mcp
 
 ### Build / Test
 
+아래 수치는 **이번 전체 tests 감사 및 추가 수정 전에 Windows에서 실제 실행했던 과거 결과**입니다.
+
 ```text
 npm run build     PASS
 npm test          PASS
@@ -639,6 +641,8 @@ tests   4
 pass    4
 fail    0
 ```
+
+이번 감사에서 `tests/index.test.js`가 9개, `tests/dist_sync.test.js`가 1개로 확장되어 **현재 회귀 테스트 정의는 총 10개**입니다. 이 10개는 최신 코드 수정 후 아직 Windows에서 재실행하지 않았습니다.
 
 통과 테스트:
 
