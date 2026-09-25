@@ -679,3 +679,71 @@ GitHub 원격 브랜치의 현재 코드
 4. 검증용 PNU 1건에서 `PNU → jigu_info → notice_code → EUM detail seq → attachments → 원자료 → parcel evidence` 전체 흐름을 실제 로그로 확인.
 5. 그 로그를 기준으로 고시 식별·첨부 다운로드·필지 적용성 evidence의 남은 오류를 고친다.
 6. 그 다음에야 고시별 evidence schema와 최종 MCP 반환 구조를 고정한다.
+
+---
+
+## 19. 2026-09-25 로컬 ↔ GitHub 안전 동기화 구조
+
+### 목적
+
+`C:\\AI_BOT_SEO\\korean_urban_plan_mcp`를 `urban-plan-source-evidence` 원격 브랜치와 연결하여, 이후 GitHub 코드 변경을 로컬에서 최소 작업으로 반영한다.
+
+### 추가 파일
+
+- `tools/sync_urban_plan.ps1`
+  - Git 실행 파일을 PATH, 일반 Git 설치 경로, GitHub Desktop의 embedded Git 순으로 탐색.
+  - `origin` URL이 `https://github.com/yunsy84/test_file.git`와 다르면 중단.
+  - working tree가 dirty이면 중단하고 로컬 변경을 보존.
+  - `git fetch origin urban-plan-source-evidence` 수행.
+  - Setup 시 대상 로컬 브랜치를 만들거나 기존 브랜치로 전환.
+  - Update 시 `git pull --ff-only origin urban-plan-source-evidence`만 수행.
+  - `reset --hard`, 강제 pull, 삭제, 복제 폴더 생성은 하지 않음.
+
+- `tools/sync_urban_plan.cmd`
+  - PowerShell 스크립트를 실행하는 Windows 1클릭 wrapper.
+
+### 최초 1회 설정
+
+현재 로컬 프로젝트가 GitHub 저장소와 연결되어 있고 working tree가 깨끗한 상태에서:
+
+```powershell
+cd C:\\AI_BOT_SEO\\korean_urban_plan_mcp
+.\\tools\\sync_urban_plan.ps1 -Action Setup
+```
+
+현재 로컬 작업물이 변경되어 있으면 스크립트가 중단한다. 이 경우 기존 작업을 임의로 삭제하거나 reset하지 않는다.
+
+### 이후 업데이트
+
+GitHub에서 `urban-plan-source-evidence`가 수정된 뒤 로컬을 갱신할 때:
+
+```powershell
+cd C:\\AI_BOT_SEO\\korean_urban_plan_mcp
+.\\tools\\sync_urban_plan.cmd
+```
+
+또는 PowerShell에서:
+
+```powershell
+.\\tools\\sync_urban_plan.ps1 -Action Update
+```
+
+### Status
+
+연결 상태만 확인할 때:
+
+```powershell
+.\\tools\\sync_urban_plan.ps1 -Action Status
+```
+
+### 안전 규칙
+
+- 로컬 변경사항이 있으면 Pull하지 않는다.
+- 대상 branch가 아니면 Update를 실행하지 않는다.
+- fast-forward 가능한 경우에만 Pull한다.
+- `origin`이 예상 저장소가 아니면 자동 변경하지 않는다.
+- GitHub 원격 HEAD와 로컬 HEAD를 출력하여 동기화 결과를 확인한다.
+
+### 현재 구조의 의미
+
+최초 Setup이 완료되면 로컬 프로젝트 폴더 자체가 `urban-plan-source-evidence`를 체크아웃한 작업 폴더가 된다. 이후 GitHub에서 코드가 변경되면 사용자는 sync 명령만 실행하면 된다. 다른 복제 폴더나 별도 worktree를 만들지 않는다.
