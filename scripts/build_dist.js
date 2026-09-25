@@ -27,7 +27,7 @@ mkdirSync(
 const wrapper = [
   'import "../src/server.js";',
   ""
-].join("\\n");
+].join("\n");
 
 writeFileSync(
   resolve(
