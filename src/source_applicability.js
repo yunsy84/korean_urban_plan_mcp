@@ -727,9 +727,11 @@ async function classifyFile(
     return "ole";
   }
 
-  if (
-    /\.hwp(?:x)?$/i.test(name)
-  ) {
+  if (/\.hwpx$/i.test(name)) {
+    return "hwpx";
+  }
+
+  if (/\.hwp$/i.test(name)) {
     return "hwp";
   }
 
