@@ -204,7 +204,7 @@ korean_urban_plan_mcp/
 - 고시 상세의 실제 첨부파일을 확인
 - 필요하면 원본 파일을 로컬 cache에 저장
 
-현재 처리 대상에는 PDF / ZIP / PNG / JPEG / HWP 계열 원자료가 포함됩니다.
+현재 처리 대상에는 PDF / ZIP / PNG / JPEG / HWP / HWPX 계열 원자료가 포함되며, 이미지 원자료는 OCR 보조 Evidence 경로로 연결됩니다.
 
 ---
 
@@ -369,6 +369,8 @@ ZIP 내부 원자료 중 PDF/HWP/OLE/text 계열을 분류하여 추출합니다
 ```text
 CONFIRMED_BY_TEXT
 CONFIRMED_BY_OCR
+IMAGE_OCR_MATCHED_REQUIRES_VISUAL_REVIEW
+NOTICE_METADATA_MATCHED
 TEXT_SOURCE_UNAVAILABLE
 OCR_NOT_CONFIRMED
 NOT_CONFIRMED_BY_TEXT
@@ -798,3 +800,49 @@ C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads
 ```
 
 고시별로 `downloads/notice/<notice_code>/` 아래에 원자료가 저장된다. 검증은 캐시된 파일을 가정하지 않고 **PNU → 고시 → detail → 첨부 다운로드 → source_applicability evidence** 순서로 실제 원자료를 확보한 뒤 수행한다.
+
+
+---
+
+## 26. 2026-09-25 tests 전체 대조 및 운영 코드 반영
+
+기존 `tests/`의 EUM runtime/detail/attachment/PDF/OCR/evidence probe를 다시 대조하여, 이미 확인된 로직과 현재 운영 코드 사이의 누락을 최소 수정으로 반영했다.
+
+### 반영된 핵심 누락
+
+- 지번 공백 정규화 및 표기 변형 매칭
+- 원자료 문맥의 표 형식 면적값 보조 추출
+- 첨부 하나의 다운로드 실패가 전체 분석을 중단하지 않도록 분리
+- 실패한 첨부의 `downloadError` 보존
+- EUM JavaScript `download(...)` 내부 Cookie의 MCP JSON 노출 방지
+- detail seq / detail URL / 비민감 다운로드 추적정보 보존
+- HWPX 별도 분류 및 `Contents/sectionN.xml` 기반 텍스트 추출
+- ZIP 내부 HWPX 분석 연결
+- PNG/JPEG 등 이미지 원자료 OCR 보조 경로 연결
+- `analyze_urban_plan.saveMatchedImages` → PDF evidence locator 전달
+- 고시 metadata match와 실제 원자료 match 분리
+- 원자료 분석 예외를 `source_analysis_error`로 격리
+- 다운로드 응답 `truncated` 무결성 검사
+- EUM session Cookie 누적 유지
+
+### 중요한 판정 원칙
+
+고시 제목이나 설명에 지번이 포함되어 있어도 그것만으로 원자료 적용성을 확정하지 않는다. 실제 첨부 원자료에서 확인된 evidence와 metadata-only match를 구분한다.
+
+또한 지도/결정도/지형도면 이미지에서 OCR로 지번이 발견되는 것만으로 공간 적용성을 확정하지 않고 `IMAGE_OCR_MATCHED_REQUIRES_VISUAL_REVIEW`로 별도 표시한다.
+
+### 현재 회귀 테스트 수
+
+`tests/*.test.js` 기준 **10개 test 정의**가 존재한다.
+
+이는 최신 변경 후 Windows에서 실제 `npm test`를 다시 실행했다는 뜻은 아니다. 마지막으로 실제 실행된 과거 결과와 이번 수정 후의 실행 결과를 구분하여 기록한다.
+
+이번 단계의 최신 검증은 다음 명령으로 수행한다.
+
+```powershell
+cd C:\AI_BOT_SEO\korean_urban_plan_mcp
+.\tools\sync_urban_plan.cmd
+npm run build
+npm test
+```
+
