@@ -263,6 +263,57 @@ test("internal download request metadata is not exposed by JSON serialization", 
 
 });
 
+test("notice metadata match is not treated as source-document confirmation", async () => {
+  const dir =
+    await fs.mkdtemp(
+      path.join(
+        os.tmpdir(),
+        "urban-plan-metadata-"
+      )
+    );
+
+  const result =
+    await analyzeTextApplicability({
+      pnu:
+        "4311111200104600010",
+      jibun:
+        "수동 460-10",
+      notice: {
+        notice_code:
+          "TEST-METADATA",
+        title:
+          "수동 460-10 관련 도시관리계획",
+        content:
+          ""
+      },
+      attachments: [],
+      noticeDir:
+        dir,
+      enableOcrFallback:
+        false
+    });
+
+  assert.equal(
+    result.status,
+    "NOTICE_METADATA_MATCHED"
+  );
+
+  assert.equal(
+    result.matchCount,
+    0
+  );
+
+  assert.equal(
+    result.metadataMatchCount,
+    1
+  );
+
+  assert.equal(
+    result.matchedSources.length,
+    0
+  );
+});
+
 test("source package preserves exact attachment download error", () => {
   const errorMessage =
     "Attachment body does not look like the requested binary file.";
@@ -292,8 +343,18 @@ test("source package preserves exact attachment download error", () => {
     });
 
   assert.equal(
+    result.attachmentCount,
+    1
+  );
+
+  assert.equal(
     result.preservedOriginalCount,
     0
+  );
+
+  assert.equal(
+    result.failedDownloadCount,
+    1
   );
 
   assert.equal(
