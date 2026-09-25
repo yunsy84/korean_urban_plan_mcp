@@ -5,8 +5,9 @@ import {
   downloadBinary
 } from "./eum_source_client.js";
 
-const ROOT = process.cwd();
-const CACHE_ROOT = path.join(ROOT, "cache", "notice");
+import {
+  loadConfig
+} from "./config.js";
 
 function safeFileName(value) {
   const cleaned = String(value ?? "")
@@ -66,7 +67,8 @@ async function findExistingFile(noticeDir, index, displayName) {
 }
 
 export async function storeAttachment(noticeCode, attachment, index, { force = false } = {}) {
-  const noticeDir = path.join(CACHE_ROOT, safeFileName(noticeCode));
+  const downloadRoot = loadConfig().downloadRoot;
+  const noticeDir = path.join(downloadRoot, "notice", safeFileName(noticeCode));
   await fs.mkdir(noticeDir, { recursive: true });
 
   let displayName = safeFileName(
