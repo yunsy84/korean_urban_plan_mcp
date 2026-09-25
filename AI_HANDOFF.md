@@ -770,3 +770,28 @@ cd C:\\AI_BOT_SEO\\korean_urban_plan_mcp
 2. `npm run build`.
 3. `npm test`.
 4. 테스트가 통과하면 MCP 기동과 실제 EUM probe로 이동.
+
+
+---
+
+## 21. 2026-09-25 Windows build/test 실제 검증
+
+### 실제 실행 결과
+
+- Windows 로컬 `C:\\AI_BOT_SEO\\korean_urban_plan_mcp`에서 `npm run build` 성공.
+- `npm test` 성공.
+- Node test runner 결과: 4 tests, 4 pass, 0 fail.
+- 통과 항목:
+  - `dist/server.js` runtime wrapper 회귀 테스트
+  - source package 다운로드 첨부 메타데이터 보존
+  - PNU/jibun 불일치 사전 차단
+  - `analyze_urban_plan` jibun 필수 검증
+
+### 다음 검증 단계
+
+자동 테스트 통과는 핵심 외부 연동이 실제로 정확하다는 의미는 아니다. 다음은 실제 MCP 기동과 EUM 네트워크/원자료 흐름 검증이다.
+
+1. `npm start`로 stdio MCP 서버 기동 확인.
+2. MCP Inspector 또는 실제 MCP 클라이언트에서 `discover_tools`, `resolve_urban_plan` 호출 확인.
+3. 검증용 PNU로 EUM runtime probe 실행.
+4. 실제 `PNU → jigu_info → notice_code → detail seq → attachments → 원자료 → parcel evidence` 전체 흐름 검증.
