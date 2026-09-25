@@ -133,6 +133,7 @@ try:
 
 finally:
     ole.close()
+`;
 
 const ZIP_EXTRACT_SCRIPT = String.raw`
 import sys
