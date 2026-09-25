@@ -531,13 +531,34 @@ export async function getNoticeDetail(
 
       seen.add(key);
 
-      attachments.push({
+      const attachmentWithTrace = {
         ...attachment,
         detailSeq:
           page.seq,
         detailUrl:
           page.url
-      });
+      };
+
+      if (attachment._download) {
+        Object.defineProperty(
+          attachmentWithTrace,
+          "_download",
+          {
+            value:
+              attachment._download,
+            enumerable:
+              false,
+            writable:
+              false,
+            configurable:
+              false
+          }
+        );
+      }
+
+      attachments.push(
+        attachmentWithTrace
+      );
     }
   }
 
