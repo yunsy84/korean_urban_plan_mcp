@@ -259,16 +259,35 @@ async function main() {
   console.log("");
   console.log("=== 4. DOWNLOAD ORIGINAL ATTACHMENTS ===");
 
-  let attachments;
-  try {
-    attachments = await storeAllAttachments(
-      selectedNotice.notice_code,
-      detail.attachments
+  const attachments = await storeAllAttachments(
+    selectedNotice.notice_code,
+    detail.attachments
+  );
+
+  const failedAttachments =
+    attachments.filter(
+      (attachment) =>
+        Boolean(attachment.downloadError)
     );
-  } catch (error) {
-    fail(
-      `Original attachment download failed: ${error?.message || String(error)}`
-    );
+
+  if (failedAttachments.length > 0) {
+    console.log("");
+    console.log("DOWNLOAD WARNINGS");
+
+    for (const attachment of failedAttachments) {
+      console.log(
+        JSON.stringify(
+          {
+            displayName: attachment.displayName,
+            kind: attachment.kind,
+            url: attachment.url,
+            downloadError: attachment.downloadError
+          },
+          null,
+          2
+        )
+      );
+    }
   }
 
   for (const attachment of attachments) {
@@ -350,13 +369,31 @@ async function main() {
   console.log("");
   console.log("==============================================================================");
 
-  if (applicability.matchCount > 0) {
+  if (
+    applicability.matchCount > 0 &&
+    failedAttachments.length === 0
+  ) {
     console.log(
       "RESULT: PASS - PNU -> notice -> detail -> attachment download -> evidence"
     );
+  } else if (
+    applicability.matchCount > 0 &&
+    failedAttachments.length > 0
+  ) {
+    console.log(
+      "RESULT: PARTIAL - parcel evidence confirmed but one or more attachments failed"
+    );
+    process.exitCode = 2;
+  } else if (
+    failedAttachments.length > 0
+  ) {
+    console.log(
+      "RESULT: PARTIAL - available attachments processed; parcel evidence not confirmed"
+    );
+    process.exitCode = 2;
   } else {
     console.log(
-      "RESULT: INCOMPLETE - download succeeded but parcel evidence was not confirmed"
+      "RESULT: INCOMPLETE - attachments processed but parcel evidence was not confirmed"
     );
     process.exitCode = 2;
   }
