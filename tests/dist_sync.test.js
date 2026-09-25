@@ -19,7 +19,7 @@ test("dist/server.js is a runtime wrapper for the current source server", async 
   );
 
   assert.equal(
-    content,
+    content.replace(/\r\n/g, "\n"),
     'import "../src/server.js";\n'
   );
 });
