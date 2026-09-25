@@ -643,3 +643,39 @@ GitHub 원격 브랜치의 현재 코드
 
 이 문서는 **작업 기억과 개발 규칙을 전달하는 인계 문서**이지,
 실제 소스 코드나 Git history를 대신하는 문서가 아니다.
+
+---
+
+## 18. 2026-09-25 디버깅/개선 반영
+
+현재 HEAD의 실제 코드를 다시 점검한 결과, 기능 확장 전에 실행 경로와 원자료 추출의 신뢰성을 보완했다.
+
+### 확인된 문제
+
+1. `dist/server.js`가 현재 `src/server.js`와 다른 구버전 아키텍처였다.
+2. 기존 `scripts/build_dist.js`가 `src/server.js` 하나만 복사하여 현재 서버의 실제 import 구조와 맞지 않았다.
+3. `package.json`/`package-lock.json` 버전이 `0.3.1`인 반면 현재 MCP runtime은 `0.4.0`이었다.
+4. `npm run probe`가 현재 존재하지 않는 구버전 dataset/standalone 경로를 사용했다.
+5. HWP 추출이 `BodyText/Section0` 하나만 읽어 다중 Section 문서에서 후속 본문을 놓칠 가능성이 있었다.
+
+### 반영된 개선
+
+- `scripts/build_dist.js`: `dist/server.js`를 현재 `src/server.js`를 호출하는 runtime wrapper로 생성.
+- `dist/server.js`: `import "../src/server.js";` 형태로 현재 소스를 직접 실행하도록 정렬.
+- `package.json` / `package-lock.json`: 버전 `0.4.0`으로 일치.
+- `npm run probe`: 현재 브라우저 기반 `tests/eum_runtime_probe.js`를 사용하도록 변경.
+- `tests/dist_sync.test.js`: dist 실행 진입점이 현재 source server를 가리키는지 회귀 테스트 추가.
+- `src/source_applicability.js`: HWP `BodyText/SectionN`을 모두 열거하여 Section별 텍스트를 순서대로 추출하도록 보완.
+
+### 현재 검증 상태
+
+위 변경은 GitHub 실제 브랜치에 반영되었다. 다만 이 환경에서는 사용자의 Windows 로컬 `C:\\AI_BOT_SEO\\korean_urban_plan_mcp`에서 실제 `npm run build`, `npm test`, MCP Inspector, EUM 네트워크 요청을 실행한 결과가 아니므로 통과를 단정하지 않는다.
+
+### 다음 단계
+
+1. Windows 로컬에서 `npm run build` 실행.
+2. `npm test` 실행.
+3. `npm start` 또는 MCP Inspector로 `discover_tools`와 `resolve_urban_plan` 기동 확인.
+4. 검증용 PNU 1건에서 `PNU → jigu_info → notice_code → EUM detail seq → attachments → 원자료 → parcel evidence` 전체 흐름을 실제 로그로 확인.
+5. 그 로그를 기준으로 고시 식별·첨부 다운로드·필지 적용성 evidence의 남은 오류를 고친다.
+6. 그 다음에야 고시별 evidence schema와 최종 MCP 반환 구조를 고정한다.
