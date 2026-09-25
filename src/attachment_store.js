@@ -20,6 +20,8 @@ function safeFileName(value) {
 function extensionForKind(kind) {
   if (kind === "pdf") return ".pdf";
   if (kind === "zip") return ".zip";
+  if (kind === "hwp") return ".hwp";
+  if (kind === "hwpx") return ".hwpx";
   if (kind === "image") return ".img";
   return ".bin";
 }
@@ -46,11 +48,75 @@ function detectMagic(buffer) {
   if (buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b) return "zip";
   if (buffer.length >= 8 && buffer.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "png";
   if (buffer.length >= 3 && buffer.subarray(0, 3).toString("hex") === "ffd8ff") return "jpeg";
+  if (
+    buffer.length >= 8 &&
+    buffer.subarray(0, 8).toString("hex") === "d0cf11e0a1b11ae1"
+  ) {
+    return "ole";
+  }
   return "unknown";
 }
 
 function resolveExtension(magic, contentType, kind) {
   return extensionFromMagic(magic) || extensionFromContentType(contentType) || extensionForKind(kind);
+}
+
+function expectedTypeFromAttachment(attachment) {
+  const combined =
+    `${attachment?.displayName ?? ""} ${attachment?.url ?? ""}`
+      .toLowerCase();
+
+  if (/\.pdf(?:[?#]|$)|\bpdf\b/i.test(combined)) return "pdf";
+  if (/\.zip(?:[?#]|$)|\bzip\b/i.test(combined)) return "zip";
+  if (/\.hwpx(?:[?#]|$)|\bhwpx\b/i.test(combined)) return "hwpx";
+  if (/\.hwp(?:[?#]|$)|\bhwp\b/i.test(combined)) return "hwp";
+  if (/\.(?:jpe?g|png|gif|bmp|webp)(?:[?#]|$)/i.test(combined)) return "image";
+  return attachment?.kind || "other";
+}
+
+function validateDownloadedBody(attachment, result, magic) {
+  const expected = expectedTypeFromAttachment(attachment);
+  const contentType = String(result?.contentType ?? "").toLowerCase();
+
+  if (magic !== "unknown") {
+    if (expected === "pdf" && magic !== "pdf") {
+      throw new Error(
+        `Attachment type mismatch: expected PDF, received ${magic}.`
+      );
+    }
+    if (expected === "zip" && magic !== "zip") {
+      throw new Error(
+        `Attachment type mismatch: expected ZIP, received ${magic}.`
+      );
+    }
+    if (expected === "hwp" && magic !== "ole") {
+      throw new Error(
+        `Attachment type mismatch: expected HWP/OLE, received ${magic}.`
+      );
+    }
+    if (expected === "hwpx" && magic !== "zip") {
+      throw new Error(
+        `Attachment type mismatch: expected HWPX/ZIP, received ${magic}.`
+      );
+    }
+    return;
+  }
+
+  const looksLikeHtml =
+    contentType.includes("text/html") ||
+    contentType.includes("text/plain");
+
+  if (looksLikeHtml || result.body.length < 256) {
+    const preview =
+      result.body.subarray(0, 256).toString("utf8")
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    throw new Error(
+      `Attachment body does not look like the requested binary file (expected=${expected}, bytes=${result.body.length}, contentType=${result.contentType || "unknown"}, preview=${preview.slice(0, 160)}).`
+    );
+  }
 }
 
 async function findExistingFile(noticeDir, index, displayName) {
@@ -126,6 +192,7 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
     );
 
   const magic = detectMagic(result.body);
+  validateDownloadedBody(attachment, result, magic);
   const extension = resolveExtension(magic, result.contentType, attachment.kind);
 
   if (!path.extname(displayName)) displayName += extension;
