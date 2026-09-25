@@ -653,9 +653,6 @@ function isTerrainMapPage(
   return (
     normalized.includes(
       "지형도면고시도"
-    ) ||
-    normalized.includes(
-      "지형도면고시도"
     )
   );
 }
@@ -1330,6 +1327,7 @@ async function main() {
   }
 
   if (
+    parcelEvidence.length > 0 &&
     parcelArea.likelyArea === null
   ) {
     result.warnings.push(
@@ -1580,11 +1578,11 @@ async function main() {
     parcelEvidence.length > 0
   ) {
     console.log(
-      "RESULT: PASS - PARCEL EVIDENCE FOUND"
+      "RESULT: PASS - PARCEL TEXT EVIDENCE FOUND"
     );
   } else {
     console.log(
-      "RESULT: PASS - PARCEL EVIDENCE NOT FOUND"
+      "RESULT: INCOMPLETE - PARCEL TEXT EVIDENCE NOT FOUND"
     );
   }
 
