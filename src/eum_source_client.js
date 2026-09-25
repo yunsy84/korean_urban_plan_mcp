@@ -356,8 +356,6 @@ function mergeCookieHeader(
   return [...map.values()].join("; ");
 }
 
-}
-
 export async function getEumPublicPage(
   pnu
 ) {
