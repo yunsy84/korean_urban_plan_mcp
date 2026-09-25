@@ -995,17 +995,16 @@ downloads/
 - HWP: 기존 POST 요청은 HTTP 오류가 아닌 47바이트 `text/html; charset=euc-kr` 오류 페이지를 반환
 - 오류 본문 미리보기: `해당 파일을 조회할 수 없습니다.`
 
-이에 `src/attachment_store.js`에 HWP 전용 fallback을 추가했다.
+당시 실제 HWP 응답이 오류 HTML이었기 때문에 `src/attachment_store.js`에 추측성 GET fallback을 추가했다가, 기존 probe에서 해당 GET 방식의 성공 증거가 없음을 확인하여 다시 제거했다.
 
-1. 기존 POST `FileDownload.do` 요청을 먼저 시도한다.
-2. 기대 형식(HWP/OLE) 검증 실패 시, POST body의 `file` 값을 추출한다.
-3. 같은 `FileDownload.do` endpoint에 `isGosi=Y&file=<file>` GET 방식으로 재시도한다.
-4. GET 결과도 실제 OLE/HWP magic 및 응답 형식을 검증한다.
-5. 저장된 캐시 파일도 재사용 전에 동일 검증을 수행하며, 비정상이면 삭제 후 재다운로드한다.
+현재 원칙은 다음과 같다.
 
-공식 EUM 고시 상세 페이지의 실제 첨부 표기는 `천안시 고시 제2020-2호.hwp (6,489 KByte)`이다.
+1. EUM detail HTML에서 실제 확인된 JavaScript `download(...)` 요청 metadata를 사용한다.
+2. 해당 요청으로 받은 응답의 magic/type을 검증한다.
+3. 실패하면 그 첨부만 `downloadError`로 기록하고 다른 첨부 분석은 계속한다.
+4. 검증되지 않은 GET fallback을 임의로 추가하지 않는다.
 
-다음 검증은 동일 PNU/고시를 다시 실행하여 HWP가 정상 원본으로 내려오는지 확인한 뒤, 그 HWP 원문을 `source_applicability.js`가 분석하는 단계다.
+공식 EUM 고시 상세 페이지의 실제 첨부 표기는 `천안시 고시 제2020-2호.hwp (6,489 KByte)`였으며, 당시 실제 POST 결과는 오류 HTML이었다.
 
 
 ### 2026-09-25 EUM 일시적 ECONNRESET 대응
@@ -1048,3 +1047,102 @@ downloads/
 2. 기존에 확보했던 실제 원자료가 있는 경우 `source_applicability.js`의 필지 매칭
 3. 정상 PDF가 HWP 실패 때문에 전체 분석을 막지 않는지 확인
 순이다.
+
+
+---
+
+## 26. 2026-09-25 tests 전체 대조 및 운영 코드 누락 반영
+
+이번 단계에서는 새로운 EUM 네트워크 probe를 반복하지 않고, 현재 `tests/`에 존재하는 기존 probe들의 로직과 실제 운영 코드의 연결관계를 다시 대조했다.
+
+### 기존 probe에서 확인하여 운영 코드에 반영한 항목
+
+1. `tests/urban_plan_evidence_extractor.js`
+   - 공백을 제거하는 필지 문자열 정규화 방식을 운영 `source_applicability.js`에 반영.
+   - `수동 460-10`과 `수동460-10번지`처럼 실제 원자료 표기가 달라질 수 있는 경우를 회귀 테스트로 고정.
+   - 필지 주변 문맥에서 표 형식 면적값을 추출하는 보조 evidence를 추가.
+   - 필지 미발견을 `PASS`로 표시하던 legacy probe 문구를 `INCOMPLETE`로 수정.
+
+2. `tests/eum_notice_attachment_probe.js`
+   - 첨부 하나가 실패해도 전체 검증을 중단하지 않고 다음 첨부를 계속 확인하는 원칙을 운영 `storeAllAttachments()`에 반영.
+   - 실패 첨부의 `downloadError`를 source package까지 전달.
+
+3. `tests/eum_notice_detail_probe.js` 및 실제 detail parser 확인
+   - EUM의 JavaScript `download(...)` 방식이 실제 첨부 다운로드 경로임을 기준으로 유지.
+   - 내부 session Cookie가 MCP JSON 결과에 노출되지 않도록 `_download` metadata를 non-enumerable로 변경.
+   - `getNoticeDetail()`에서 trace 객체를 만들 때 숨겨진 `_download`를 다시 보존하도록 수정.
+   - detail `seq`, detail URL, 다운로드 method/file path 등 재현에 필요한 비민감 metadata를 반환값에 보존.
+
+4. HWPX 누락
+   - 기존 운영 코드는 `.hwpx`를 HWP로 잘못 분류하고 ZIP 내부에서도 HWPX를 건너뛸 수 있었다.
+   - `.hwpx`를 별도 형식으로 분류하고 `Contents/sectionN.xml`을 추출하는 production path를 추가.
+   - ZIP 내부 HWPX도 동일한 경로로 분석하도록 연결.
+   - Windows Python이 없는 환경에서는 해당 회귀 테스트를 skip하도록 테스트를 구성.
+
+5. 이미지 원자료 누락
+   - `evidence_locator.js`에 이미 `locateImageEvidence()`가 존재했지만 운영 `source_applicability.js`가 이를 호출하지 않고 있었다.
+   - PNG/JPEG 등 image attachment에 대한 OCR 보조 Evidence 경로를 연결.
+   - 이미지 OCR은 공간적 적용성을 확정하는 근거가 아니라 보조 근거로 취급하고 `IMAGE_OCR_MATCHED_REQUIRES_VISUAL_REVIEW` 상태를 별도로 사용.
+
+6. PDF OCR 출력 옵션 연결
+   - `analyze_urban_plan`의 `saveMatchedImages` 옵션이 실제 `locatePdfEvidence()`까지 전달되지 않던 연결 누락을 수정.
+   - 기본 저장 위치는 해당 고시 download directory의 `evidence_images`로 연결.
+
+7. 원자료 상태 분리
+   - 고시 제목/내용에서 지번이 발견된 것과 첨부 원자료에서 지번이 발견된 것을 분리.
+   - metadata만 일치한 경우 `NOTICE_METADATA_MATCHED`로 표시하고 source-document confirmation으로 취급하지 않는다.
+   - source 분석 실패도 전체 분석 실패로 전파하지 않고 `source_analysis_error`로 남긴다.
+
+8. 다운로드 무결성
+   - binary 응답이 설정된 최대 크기에서 잘린 경우 `truncated`를 전달하고 저장하지 않는다.
+   - HWP/PDF 등의 정상 원본이 아닌 HTML 응답을 저장하지 않는 기존 magic/type 검증을 유지.
+
+9. EUM session Cookie 유지
+   - 고시 목록 요청과 detail 요청에서 새 Cookie가 기존 Cookie를 덮어써서 session 정보가 사라질 가능성을 줄이기 위해 Cookie name 기준 merge를 추가.
+
+### 현재 회귀 테스트 구성
+
+현재 `tests/*.test.js` 기준으로:
+- `tests/index.test.js`: 9개 test 정의
+- `tests/dist_sync.test.js`: 1개 test 정의
+- 합계 10개 test 정의
+
+포함되는 주요 회귀 범위:
+- dist runtime wrapper
+- source package metadata
+- PNU/jibun 사전 검증
+- 공백/표기 차이가 있는 지번 match
+- 면적 문맥 extraction
+- source analysis error isolation
+- EUM download session metadata JSON 노출 방지
+- downloadError 보존
+- notice metadata-only match 분리
+- HWPX production extraction
+
+### 이번 단계 이후 검증 원칙
+
+이 문서 작성 시점에는 위 변경사항을 GitHub 실제 브랜치에 commit했다. 이 대화 환경에서는 사용자의 Windows 작업 폴더에서 최신 변경 후 `npm test`를 다시 실행한 결과를 확보하지 않았으므로, **10/10 PASS라고 단정하지 않는다.**
+
+다음 실제 Windows 검증은 새로운 EUM discovery를 다시 하는 것이 아니라:
+
+```powershell
+cd C:\AI_BOT_SEO\korean_urban_plan_mcp
+.\tools\sync_urban_plan.cmd
+npm run build
+npm test
+```
+
+순으로 최신 코드를 받아 문법 및 회귀 테스트를 확인한다.
+
+그 다음 실제 EUM 전체 흐름이 필요한 경우 기존에 이미 확보한 검증 자료를 사용하여:
+```
+PNU
+→ notice
+→ actual detail seq
+→ attachment metadata
+→ download
+→ source_applicability
+→ parcel evidence
+```
+순으로 확인한다.
+
