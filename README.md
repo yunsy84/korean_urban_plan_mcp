@@ -113,8 +113,10 @@ korean_urban_plan_mcp/
 │  ├─ eum_runtime_probe.js
 │  ├─ eum_runtime_probe_backup_20260923.js
 │  ├─ index.test.js
-│  ├─ standalone_probe.js
-│  └─ urban_plan_evidence_extractor.js
+  ├─ standalone_probe.js
+  ├─ source_applicability_probe.js
+  ├─ urban_plan_download_probe.js
+  └─ urban_plan_evidence_extractor.js
 └─ tools/
    ├─ sync_urban_plan.cmd
    └─ sync_urban_plan.ps1
