@@ -159,14 +159,36 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
   delete publicAttachment._download;
 
   if (existing) {
-    const stat = await fs.stat(existing);
-    return {
-      ...publicAttachment,
-      filePath: existing,
-      downloaded: false,
-      cached: true,
-      bytes: stat.size
-    };
+    const cachedBody = await fs.readFile(existing);
+    const cachedMagic = detectMagic(cachedBody);
+
+    try {
+      validateDownloadedBody(
+        attachment,
+        {
+          body: cachedBody,
+          contentType: ""
+        },
+        cachedMagic
+      );
+
+      const stat = await fs.stat(existing);
+
+      return {
+        ...publicAttachment,
+        filePath: existing,
+        downloaded: false,
+        cached: true,
+        bytes: stat.size,
+        magic: cachedMagic,
+        actualType:
+          cachedMagic !== "unknown"
+            ? cachedMagic
+            : attachment.kind
+      };
+    } catch {
+      await fs.unlink(existing).catch(() => {});
+    }
   }
 
   const result =
