@@ -219,6 +219,12 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
     const magic =
       detectMagic(result.body);
 
+    if (result.truncated) {
+      throw new Error(
+        "Attachment response was truncated because it exceeded the configured maximum download size."
+      );
+    }
+
     validateDownloadedBody(
       attachment,
       result,
@@ -246,6 +252,7 @@ export async function storeAttachment(noticeCode, attachment, index, { force = f
     contentType: result.contentType,
     contentLength: result.contentLength,
     contentDisposition: result.contentDisposition,
+    truncated: Boolean(result.truncated),
     magic,
     actualType: magic !== "unknown" ? magic : attachment.kind
   };
