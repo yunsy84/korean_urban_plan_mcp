@@ -139,7 +139,7 @@ function extractAnchors(
       );
 
     if (download) {
-      const resultItem = {
+      result.push({
         href:
           null,
 
@@ -152,22 +152,7 @@ function extractAnchors(
 
         attrs:
           `${match[1]} ${match[4]}`
-      };
-
-      Object.defineProperty(
-        resultItem,
-        "_download",
-        {
-          value: download,
-          enumerable: false,
-          writable: false,
-          configurable: false
-        }
-      );
-
-      result.push(
-        resultItem
-      );
+      });
 
       continue;
     }
