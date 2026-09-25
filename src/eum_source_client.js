@@ -24,7 +24,7 @@ const USER_AGENT =
   "AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/153.0.0.0 Safari/537.36";
 
-function requestBuffer(
+function requestBufferOnce(
   urlString,
   {
     method = "GET",
@@ -175,6 +175,63 @@ function requestBuffer(
 
     req.end();
   });
+}
+
+function isRetryableNetworkError(error) {
+  const code =
+    String(
+      error?.code ??
+      ""
+    ).toUpperCase();
+
+  return [
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "EPIPE",
+    "ETIMEDOUT",
+    "ECONNABORTED"
+  ].includes(code);
+}
+
+export async function requestBuffer(
+  urlString,
+  options = {}
+) {
+  const maxRetries =
+    Number.isInteger(options.networkRetries)
+      ? Math.max(0, options.networkRetries)
+      : 2;
+
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await requestBufferOnce(
+        urlString,
+        options
+      );
+    } catch (error) {
+      if (
+        !isRetryableNetworkError(error) ||
+        attempt >= maxRetries
+      ) {
+        throw error;
+      }
+
+      const delayMs =
+        400 * (attempt + 1);
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            delayMs
+          )
+      );
+
+      attempt += 1;
+    }
+  }
 }
 
 function decodeText(
