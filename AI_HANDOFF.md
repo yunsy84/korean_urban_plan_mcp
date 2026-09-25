@@ -1006,3 +1006,18 @@ downloads/
 공식 EUM 고시 상세 페이지의 실제 첨부 표기는 `천안시 고시 제2020-2호.hwp (6,489 KByte)`이다.
 
 다음 검증은 동일 PNU/고시를 다시 실행하여 HWP가 정상 원본으로 내려오는지 확인한 뒤, 그 HWP 원문을 `source_applicability.js`가 분석하는 단계다.
+
+
+### 2026-09-25 EUM 일시적 ECONNRESET 대응
+
+실제 end-to-end probe 재실행 중 1단계 PNU 조회에서 `read ECONNRESET`이 발생했다. 이 오류는 원자료/고시 파싱 단계에 도달하기 전 TLS 연결이 재설정된 것이다.
+
+`src/eum_source_client.js`의 내부 `requestBufferOnce()`를 감싸는 `requestBuffer()` 재시도 계층을 추가했다.
+
+- 재시도 대상: `ECONNRESET`, `ECONNREFUSED`, `EPIPE`, `ETIMEDOUT`, `ECONNABORTED`
+- 기본 재시도: 최대 2회
+- 대기: 400ms, 800ms
+- 그 외 오류는 즉시 반환
+- 기존 요청 method/header/body는 그대로 재사용
+
+이 변경은 EUM endpoint나 요청 파라미터를 바꾸는 것이 아니라 일시적 연결 재설정에 대한 안정성 보완이다.
