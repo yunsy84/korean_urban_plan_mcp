@@ -5,7 +5,7 @@ param(
   [string]$RepoPath = "C:\AI_BOT_SEO\korean_urban_plan_mcp"
 )
 $ErrorActionPreference = "Stop"
-$ExpectedRemote = "https://github.com/yunsy84/test_file.git"
+$ExpectedRemote = "https://github.com/yunsy84/korean_urban_plan_mcp.git"
 $TargetBranch = "urban-plan-source-evidence"
 
 function Resolve-GitExe {
