@@ -1268,7 +1268,8 @@ export async function analyzeTextApplicability({
       continue;
     }
 
-    const attachmentHash =
+    try {
+      const attachmentHash =
       await fileHash(
         attachment.filePath
       );
@@ -1553,6 +1554,33 @@ export async function analyzeTextApplicability({
       }
 
       continue;
+    }
+    } catch (error) {
+      sources.push({
+        fileType:
+          attachment.kind ||
+          "unknown",
+        filePath:
+          attachment.filePath,
+        displayName:
+          attachment.displayName,
+        role:
+          roleFromName(
+            attachment.displayName ||
+            attachment.filePath
+          ),
+        matched: false,
+        matchedVariants: [],
+        matchedPages: [],
+        snippet: null,
+        status:
+          "source_analysis_error",
+        reason:
+          String(
+            error?.message ||
+            error
+          )
+      });
     }
   }
 
