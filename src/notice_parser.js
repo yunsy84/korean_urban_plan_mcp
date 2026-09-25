@@ -412,7 +412,7 @@ export function extractAttachmentCandidates(
 
     seen.add(key);
 
-    result.push({
+    const resultItem = {
       kind:
         classifyAttachment(
           kindTarget,
@@ -423,15 +423,25 @@ export function extractAttachmentCandidates(
         anchor.text ||
         null,
 
-      url,
+      url
+    };
 
-      ...(request
-        ? {
-            _download:
-              request
-          }
-        : {})
-    });
+    if (request) {
+      Object.defineProperty(
+        resultItem,
+        "_download",
+        {
+          value: request,
+          enumerable: false,
+          writable: false,
+          configurable: false
+        }
+      );
+    }
+
+    result.push(
+      resultItem
+    );
   }
 
   return result;
