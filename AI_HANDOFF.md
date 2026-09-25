@@ -982,3 +982,27 @@ downloads/
 ### 다운로드 자료 Git 추적 제외
 
 고시 첨부 원본은 로컬 검증 데이터이므로 `downloads/*`는 Git 추적 대상에서 제외한다. 저장소에는 `downloads/.gitkeep`만 유지한다. 원본은 사용자의 로컬 `downloads\\notice\\<notice_code>\\`에 보존한다.
+
+
+### 2026-09-25 HWP FileDownload.do 재검증 결과
+
+실제 Windows 실행에서 다음이 확인되었다.
+
+- 고시: `44130NTC202001020001` / `2020-2`
+- EUM detail seq: 2건 발견
+- 첨부 후보: PDF 1건 + HWP 1건
+- PDF: 약 11.3MB 정상 다운로드
+- HWP: 기존 POST 요청은 HTTP 오류가 아닌 47바이트 `text/html; charset=euc-kr` 오류 페이지를 반환
+- 오류 본문 미리보기: `해당 파일을 조회할 수 없습니다.`
+
+이에 `src/attachment_store.js`에 HWP 전용 fallback을 추가했다.
+
+1. 기존 POST `FileDownload.do` 요청을 먼저 시도한다.
+2. 기대 형식(HWP/OLE) 검증 실패 시, POST body의 `file` 값을 추출한다.
+3. 같은 `FileDownload.do` endpoint에 `isGosi=Y&file=<file>` GET 방식으로 재시도한다.
+4. GET 결과도 실제 OLE/HWP magic 및 응답 형식을 검증한다.
+5. 저장된 캐시 파일도 재사용 전에 동일 검증을 수행하며, 비정상이면 삭제 후 재다운로드한다.
+
+공식 EUM 고시 상세 페이지의 실제 첨부 표기는 `천안시 고시 제2020-2호.hwp (6,489 KByte)`이다.
+
+다음 검증은 동일 PNU/고시를 다시 실행하여 HWP가 정상 원본으로 내려오는지 확인한 뒤, 그 HWP 원문을 `source_applicability.js`가 분석하는 단계다.
