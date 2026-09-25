@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { EOL } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const root =
@@ -27,7 +28,7 @@ mkdirSync(
 const wrapper = [
   'import "../src/server.js";',
   ""
-].join("\n");
+].join(EOL);
 
 writeFileSync(
   resolve(
