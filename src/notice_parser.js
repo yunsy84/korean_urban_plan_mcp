@@ -139,7 +139,7 @@ function extractAnchors(
       );
 
     if (download) {
-      result.push({
+      const resultItem = {
         href:
           null,
 
@@ -152,11 +152,25 @@ function extractAnchors(
 
         attrs:
           `${match[1]} ${match[4]}`
-      });
+      };
+
+      Object.defineProperty(
+        resultItem,
+        "_download",
+        {
+          value: download,
+          enumerable: false,
+          writable: false,
+          configurable: false
+        }
+      );
+
+      result.push(
+        resultItem
+      );
 
       continue;
     }
-
     const href =
       absoluteUrl(
         baseUrl,
@@ -498,9 +512,14 @@ export async function getNoticeDetail(
       }
 
       seen.add(key);
-      attachments.push(
-        attachment
-      );
+
+      attachments.push({
+        ...attachment,
+        detailSeq:
+          page.seq,
+        detailUrl:
+          page.url
+      });
     }
   }
 
