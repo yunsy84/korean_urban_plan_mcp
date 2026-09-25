@@ -216,6 +216,47 @@ async function main() {
   }
 
   console.log("");
+  console.log("=== DETAIL SOURCES ===");
+  console.log(
+    JSON.stringify(
+      detail.detail?.sources ?? [],
+      null,
+      2
+    )
+  );
+
+  console.log("");
+  console.log("=== ATTACHMENT REQUEST METADATA ===");
+  for (const [index, attachment] of detail.attachments.entries()) {
+    console.log(
+      JSON.stringify(
+        {
+          index: index + 1,
+          displayName: attachment.displayName,
+          kind: attachment.kind,
+          url: attachment.url,
+          downloadMethod: attachment._download?.method ?? null,
+          downloadHeaders: attachment._download
+            ? {
+                "Content-Type":
+                  attachment._download.headers?.["Content-Type"] ?? null,
+                Origin:
+                  attachment._download.headers?.Origin ?? null,
+                Referer:
+                  attachment._download.headers?.Referer ?? null,
+                Cookie:
+                  attachment._download.headers?.Cookie ? "[REDACTED]" : null
+              }
+            : null,
+          downloadBody: attachment._download?.body ?? null
+        },
+        null,
+        2
+      )
+    );
+  }
+
+  console.log("");
   console.log("=== 4. DOWNLOAD ORIGINAL ATTACHMENTS ===");
 
   let attachments;
