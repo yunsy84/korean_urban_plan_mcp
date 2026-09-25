@@ -572,7 +572,7 @@ EUM 도시계획 페이지
 
 ```text
 Repository:
-yunsy84/test_file
+yunsy84/korean_urban_plan_mcp
 
 Branch:
 urban-plan-source-evidence
@@ -749,3 +749,41 @@ notice_code
 ### CHANGELOG_0.3.1.md / HOW_TO_USE_0.3.1.txt
 
 이전 개발 단계의 기록입니다. 현재 실제 코드 구조를 판단할 때는 `AI_HANDOFF.md`와 현재 `src/`를 우선합니다.
+
+
+---
+
+## 21. 2026-09-25 GitHub 저장소 이름 변경 및 동기화 검증
+
+기존 GitHub 저장소 `yunsy84/test_file`은 2026-09-25에 `yunsy84/korean_urban_plan_mcp`로 이름을 변경했다.
+
+현재 로컬 프로젝트와 GitHub의 연결은 다음과 같다.
+
+```text
+Local:
+C:\AI_BOT_SEO\korean_urban_plan_mcp
+
+Remote:
+https://github.com/yunsy84/korean_urban_plan_mcp.git
+
+Branch:
+urban-plan-source-evidence
+```
+
+로컬 Git의 origin URL과 `tools/sync_urban_plan.ps1`의 저장소 검증값도 새 저장소 주소로 정리했다.
+
+이 변경은 저장소 이름과 Git remote 및 동기화 검증값만 정리한 것이며, `agent_system`의 실제 MCP 실행 경로 `C:\AI_BOT_SEO\korean_urban_plan_mcp\dist\server.js`는 변경하지 않았다.
+
+### 실제 검증
+
+2026-09-25 Windows 로컬에서 다음을 실제 확인했다.
+
+- `git remote -v`: 새 `korean_urban_plan_mcp.git` 주소 확인
+- `git fetch origin`: 성공
+- `git pull --ff-only origin urban-plan-source-evidence`: 성공
+- `tools/sync_urban_plan.ps1`의 ExpectedRemote 변경 커밋 push 성공
+- `tools/sync_urban_plan.cmd`: `[SYNC OK]`
+- Local HEAD와 Remote HEAD가 `ed024931c1214fbd5cd15d169afb14ab8200bcb0`으로 일치
+- working tree: `Dirty = False`
+
+따라서 현재 이 저장소는 로컬 MCP 폴더, GitHub 저장소, 동기화 스크립트가 모두 `korean_urban_plan_mcp` 이름으로 일치하는 상태이다.
