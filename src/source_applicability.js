@@ -1322,8 +1322,7 @@ export async function analyzeTextApplicability({
       kind === "hwp" ||
       kind === "hwpx" ||
       kind === "ole" ||
-      kind === "text" ||
-      kind === "image"
+      kind === "text"
     ) {
       const result =
         await analyzeOneTextSource(
@@ -1536,7 +1535,9 @@ export async function analyzeTextApplicability({
               enableOcrFallback,
               ocrPsmModes,
               ocrScale,
-              ocrMaxPages
+              ocrMaxPages,
+              saveMatchedImages,
+              imageOutputDir
             }
           );
 
