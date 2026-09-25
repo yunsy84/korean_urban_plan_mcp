@@ -123,7 +123,7 @@ Example:
 }
 
 async function main() {
-  const options = parseArgs(process.argv);
+  const options = parseArgs(process.argv.slice(2));
   const filePath = path.resolve(options.file);
 
   await access(filePath).catch(() => {
