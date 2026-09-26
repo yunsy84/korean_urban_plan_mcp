@@ -1180,6 +1180,103 @@ export async function locatePdfEvidence(
       totalPages
     );
 
+  if (
+    saveMatchedImages &&
+    imageOutputDir
+  ) {
+    const sourceMaterialPages =
+      [
+        ...sourceMaterials.decisionDrawings.pages,
+        ...sourceMaterials.terrainMaps.pages
+      ];
+
+    const pagesToSave =
+      [
+        ...new Set(
+          sourceMaterialPages
+        )
+      ];
+
+    if (pagesToSave.length > 0) {
+      await fs.mkdir(
+        imageOutputDir,
+        {
+          recursive: true
+        }
+      );
+
+      for (
+        const pageNo
+        of pagesToSave
+      ) {
+        const pageResult =
+          normalizedPages.find(
+            page =>
+              page.page === pageNo
+          );
+
+        if (
+          !pageResult ||
+          pageResult.imagePath
+        ) {
+          continue;
+        }
+
+        const page =
+          await pdf.getPage(
+            pageNo
+          );
+
+        const viewport =
+          page.getViewport({
+            scale
+          });
+
+        const pair =
+          canvasFactory.create(
+            viewport.width,
+            viewport.height
+          );
+
+        try {
+          await page.render({
+            canvasContext:
+              pair.context,
+            viewport,
+            canvasFactory
+          }).promise;
+
+          const png =
+            pair.canvas.toBuffer(
+              "image/png"
+            );
+
+          const imagePath =
+            path.join(
+              imageOutputDir,
+              "page_" +
+              String(pageNo).padStart(
+                3,
+                "0"
+              ) +
+              ".png"
+            );
+
+          await fs.writeFile(
+            imagePath,
+            png
+          );
+
+          pageResult.imagePath =
+            imagePath;
+        } finally {
+          canvasFactory.destroy(pair);
+          page.cleanup();
+        }
+      }
+    }
+  }
+
   const warnings = [];
 
   if (parcelEvidence.length === 0) {
