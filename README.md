@@ -912,3 +912,30 @@ PNU
 ```
 
 기존 `tests/urban_plan_download_probe.js`를 우선 사용하며, 검증용 PNU/주소/고시번호를 운영 코드에 하드코딩하지 않는다.
+
+
+---
+
+## 28. 2026-09-26 실제 EUM end-to-end 1차 검증
+
+검증용 천안 필지 `4413310300111160000` / `백석동 1116`에 대해 실제 운영 경로를 실행했다.
+
+```powershell
+node tests\\urban_plan_download_probe.js --pnu 4413310300111160000 --jibun "백석동 1116" --notice-code 44130NTC202001020001 --disable-ocr
+```
+
+결과:
+
+- EUM resolve: `noticeCount = 18`
+- 선택 고시: `44130NTC202001020001`
+- detail seq: `402467`, `48400`
+- attachment candidates: 2
+- PDF 원자료: 11,299,336 bytes, 정상 PDF로 cache 확인
+- HWP: 47-byte HTML 오류 응답으로 정확히 거부
+- source package: 원본 1건 보존 + 실패한 HWP `downloadError` 보존
+- applicability: `NOT_CONFIRMED_BY_TEXT`
+- OCR: 실행하지 않음(`--disable-ocr`)
+
+`NOT_CONFIRMED_BY_TEXT`는 미적용 판정이 아니다. 이번 실행에서는 OCR을 의도적으로 비활성화했으며, native text에서 대상 지번 Evidence를 찾지 못했다는 뜻이다.
+
+다음 단계는 동일하게 확보된 PDF를 재다운로드하지 않고 `tests/source_applicability_probe.js`로 OCR 허용 production applicability 경로를 직접 검증하는 것이다.
