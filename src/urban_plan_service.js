@@ -775,6 +775,9 @@ export async function analyzeUrbanPlan(
     download = true,
     saveMatchedImages = false,
     imageOutputDir = null,
+    enableOcrFallback = true,
+    ocrMaxPages = 24,
+    ocrScale = 2.5,
     version,
     server
   }
@@ -845,6 +848,9 @@ export async function analyzeUrbanPlan(
       attachments:
         source.attachments,
       noticeDir,
+      enableOcrFallback,
+      ocrMaxPages,
+      ocrScale,
       saveMatchedImages,
       imageOutputDir:
         evidenceImageDir
