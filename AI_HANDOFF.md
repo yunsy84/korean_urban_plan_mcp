@@ -1252,3 +1252,99 @@ PNU
 이 단계는 회귀 테스트와 별개의 **실데이터 end-to-end 검증**이다.
 
 기존 `tests/urban_plan_download_probe.js`를 우선 사용하며, 특정 주소/PNU/고시번호는 코드에 하드코딩하지 않는다.
+
+
+---
+
+## 28. 2026-09-26 실제 EUM end-to-end 1차 검증
+
+검증용 천안 필지:
+
+- PNU: `4413310300111160000`
+- 지번: `백석동 1116`
+
+실행:
+
+```powershell
+node tests\\urban_plan_download_probe.js --pnu 4413310300111160000 --jibun "백석동 1116" --notice-code 44130NTC202001020001 --disable-ocr
+```
+
+### 확인된 단계
+
+```text
+PNU → EUM resolve
+        ↓
+noticeCount = 18
+        ↓
+notice_code = 44130NTC202001020001
+        ↓
+detail seq = 402467, 48400
+        ↓
+attachment candidates = 2
+        ↓
+PDF 원자료 cache hit = 11,299,336 bytes
+        ↓
+HWP 다운로드 실패를 정상 오류로 보존
+```
+
+### 실제 첨부 상태
+
+PDF:
+
+- 파일: `001_천안시고시제2020-2호.pdf`
+- 실제 타입: PDF
+- 크기: 11,299,336 bytes
+- 저장 위치: `downloads/notice/44130NTC202001020001/`
+- `cached=true`로 재사용됨
+
+HWP:
+
+- EUM 실제 `FileDownload.do` POST metadata 확보
+- 응답 47 bytes
+- `text/html; charset=euc-kr`
+- HTML alert 응답으로 판정되어 원본 파일로 저장하지 않음
+- `downloadError`를 source package에 그대로 보존
+
+### Evidence 결과
+
+이번 실행은 `--disable-ocr`를 사용했다.
+
+```text
+status                 : NOT_CONFIRMED_BY_TEXT
+matchCount             : 0
+parcelNumberCandidates : 0
+ocr attempted          : 0
+ocr skipped            : 1
+```
+
+따라서 이 결과는 **필지가 미적용이라는 판정이 아니다.**
+
+현재 확인된 의미는:
+
+1. EUM 고시와 첨부 원자료까지 연결되었다.
+2. 정상적인 PDF 원자료는 확보되었다.
+3. HWP가 실제 바이너리 파일이 아니라 오류 HTML로 반환되는 것을 코드가 정확히 식별했다.
+4. 이번 실행에서는 OCR을 의도적으로 껐으므로 PDF native text에서 대상 지번 Evidence를 찾지 못했다.
+5. 따라서 다음 단계는 새 discovery를 반복하는 것이 아니라 **이미 저장된 실제 PDF를 OCR 허용 상태로 production applicability 경로에 넣어 확인하는 것**이다.
+
+다음 검증에서는 동일 PDF를 다시 다운로드할 필요가 없다.
+
+권장 실행:
+
+```powershell
+node tests\\source_applicability_probe.js --file "C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads\\notice\\44130NTC202001020001\\001_천안시고시제2020-2호.pdf" --pnu 4413310300111160000 --jibun "백석동 1116" --notice-code 44130NTC202001020001 --ocr-max-pages 100
+```
+
+이 실행의 목적은 `source_applicability.js` 자체만 실제 PDF에 적용하여:
+
+```text
+native text match
+        또는
+OCR match
+        또는
+페이지 수 제한에 따른 OCR skip
+```
+
+중 어느 경로인지 구분하는 것이다.
+
+OCR에서도 Evidence가 발견되지 않으면 그때부터는 결정도/지형도면 같은 시각자료의 공간 적용성을 어떻게 다룰 것인지 별도로 검토한다. 텍스트/OCR 부재만으로 미적용 판정을 내리지 않는다.
