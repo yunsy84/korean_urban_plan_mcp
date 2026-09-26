@@ -876,11 +876,18 @@ async function analyzeOneTextSource(
       role,
 
       area:
-        extractAreaFromSnippet(
-          nativeSnippet,
-          matches[0] ||
-            variants[0]
-        ),
+        matches.length > 0
+          ? extractAreaFromSnippet(
+              nativeSnippet,
+              matches[0] ||
+                variants[0]
+            )
+          : ocrEvidence.primary?.area ??
+            {
+              values: [],
+              likelyArea: null,
+              raw: null
+            },
 
       pageCount:
         pdf.pageCount,
@@ -896,9 +903,17 @@ async function analyzeOneTextSource(
             ? "ocr"
             : null,
       matchedVariants:
-        matches,
+        matches.length > 0
+          ? matches
+          : (
+              ocrEvidence.primary?.matchedVariant
+                ? [ocrEvidence.primary.matchedVariant]
+                : []
+            ),
       matchedPages:
-        matchedPageNumbers,
+        matches.length > 0
+          ? matchedPageNumbers
+          : ocrEvidence.pages ?? [],
       parcelNumberMatched:
         parcelNumberMatches.length > 0,
       parcelNumberMatchedVariants:
@@ -911,7 +926,8 @@ async function analyzeOneTextSource(
               pdf.text,
               matches[0]
             )
-          : null,
+          : ocrEvidence.primary?.snippet ??
+            null,
       parcelNumberSnippet:
         parcelNumberMatches.length > 0
           ? snippetAround(
