@@ -939,3 +939,22 @@ node tests\\urban_plan_download_probe.js --pnu 4413310300111160000 --jibun "백�
 `NOT_CONFIRMED_BY_TEXT`는 미적용 판정이 아니다. 이번 실행에서는 OCR을 의도적으로 비활성화했으며, native text에서 대상 지번 Evidence를 찾지 못했다는 뜻이다.
 
 다음 단계는 동일하게 확보된 PDF를 재다운로드하지 않고 `tests/source_applicability_probe.js`로 OCR 허용 production applicability 경로를 직접 검증하는 것이다.
+
+
+---
+
+## 29. 2026-09-26 실제 PDF OCR Evidence 확인
+
+천안시 고시 제2020-2호 PDF에 대한 실제 production applicability 결과:
+
+- 상태: `CONFIRMED_BY_OCR`
+- matchCount: `1`
+- Evidence 페이지: `6`
+- 지번 변형: `백석동1116번지`
+- OCR 추출 면적: `16,028.5㎡`
+
+PDF 6페이지의 획지 관련 결정(변경)조서에서 `백석동 1116번지`와 `16,028.5 / 16,028.5`가 함께 확인됐다.
+
+이는 고시 metadata가 아니라 **실제 원본 PDF의 OCR Evidence**다.
+
+다만 결정도/지형도면의 공간적 경계 판독과는 별개다. 다음 단계에서는 이 Evidence가 개별 probe뿐 아니라 `analyzeUrbanPlan()` 최종 서비스 반환값에서도 그대로 유지되는지 확인한다.
