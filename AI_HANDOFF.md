@@ -1711,3 +1711,327 @@ plan/source evidence
 `korean_urban_plan_mcp`가 `korean_land_mcp`를 내부 호출하지 않는 원칙은 유지한다. parcel geometry는 호출자가 데이터 계약으로 전달하는 방향을 유지한다.
 
 아직 실제 SHP 파일의 다운로드 요청과 내부 필드 구조를 실행으로 확인하지 않았으므로, SHP parser/downloader를 추측하여 구현하지 않는다.
+
+
+---
+
+# 35. 2026-09-26 현재 작업 기준 — 최신 인계 요약
+
+> **이 섹션은 새 대화에서 가장 먼저 확인할 최신 작업 상태다.**
+> 과거 섹션의 “아직 검증하지 않음” 같은 문구와 충돌하면 **이 섹션의 최신 실제 실행 결과를 우선 참고하되, 실제 현재 GitHub HEAD와 실제 코드가 최우선**이다.
+
+## 35.1 GitHub 현재 기준
+
+- Repository: `yunsy84/korean_urban_plan_mcp`
+- Branch: `urban-plan-source-evidence`
+- 현재 GitHub HEAD 확인값: `c4049bef46231c68aee34fadf4ec48839fea262b`
+- Remote: `https://github.com/yunsy84/korean_urban_plan_mcp.git`
+- 로컬 프로젝트 기준 경로: `C:\\AI_BOT_SEO\\korean_urban_plan_mcp`
+
+새 대화에서는 이 SHA를 고정값으로 사용하지 말고 **반드시 실제 현재 HEAD를 다시 조회**한다.
+
+## 35.2 프로젝트 역할
+
+`korean_urban_plan_mcp`는 메인 Agent가 연결하는 **독립적인 Urban Plan 서브 MCP**다.
+
+```
+main local LLM / Agent
+        │
+        ├── korean_land_mcp
+        │      └─ V-World 토지 속성/용도지역/시설/타법 지정
+        │
+        ├── korean_urban_plan_mcp
+        │      └─ 토지이음(EUM) 도시관리계획·지구단위계획
+        │         고시/원자료/Evidence
+        │
+        └── law_mcp
+               └─ 법령/자치법규
+```
+
+`korean_urban_plan_mcp`는 내부에서 `korean_land_mcp`를 호출하지 않는다. 두 MCP 간 연결은 향후 PNU/좌표/WKT/parcel geometry 같은 데이터 계약으로 한다.
+
+## 35.3 현재 실제 운영 흐름
+
+현재 코드의 핵심 연결은:
+
+```
+PNU + jibun
+   ↓
+urban_plan_service.js
+   ↓
+EUM PNU / jigu_info / notice
+   ↓
+notice_parser.js
+   ↓
+attachment_store.js
+   ↓
+원본 첨부 보존
+   ↓
+source_applicability.js
+   ├─ PDF native text
+   ├─ HWP/HWPX text
+   ├─ 조건부 OCR
+   └─ evidence_locator.js
+         ↓
+         필지 Evidence / source-material page
+   ↓
+urban_plan_service.js
+   ↓
+최종 MCP 반환
+```
+
+## 35.4 회귀 테스트 — 실제 Windows 확정
+
+2026-09-26 Windows에서 최신 코드 기준으로 실제 실행:
+
+```
+npm run build → PASS
+
+npm test
+tests   10
+pass    10
+fail     0
+skipped  0
+```
+
+HWPX production-path 테스트도 실제 실행되어 통과했다.
+
+```
+✔ HWPX source is extracted through the production applicability path
+```
+
+따라서 현재 코드의 회귀 기준선은 **10/10 PASS**다.
+
+## 35.5 실제 EUM end-to-end 검증 — 천안 샘플
+
+> 아래 주소/PNU/고시번호는 **검증용 샘플**이며 운영 코드 하드코딩 대상이 아니다.
+
+- PNU: `4413310300111160000`
+- 지번: `백석동 1116`
+- 고시: `44130NTC202001020001`
+- 고시번호: `2020-2`
+- 고시일: `2020-01-02`
+- 기관: 천안시
+- 지구단위계획구역: `UQQ301 / 지구단위계획구역/32(천안물류단지)`
+
+실제 EUM에서 다음이 확인됐다.
+
+```
+PNU → noticeCount 18
+      ↓
+2020-2 고시 선택
+      ↓
+detail seq 402467 / 48400
+      ↓
+attachment candidates 2
+```
+
+## 35.6 원본 파일 보존
+
+다운로드 루트:
+
+```
+C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads
+```
+
+실제 PDF:
+
+```
+downloads\notice\44130NTC202001020001\
+001_천안시고시제2020-2호.pdf
+```
+
+- 정상 PDF
+- 11,299,336 bytes
+- cached 재사용 가능
+- 원본은 분석 결과와 별도로 보존
+
+실제 HWP:
+
+- EUM `FileDownload.do` POST metadata 확인
+- 응답 47 bytes
+- `text/html; charset=euc-kr`
+- HTML alert 오류 응답
+- 정상 HWP로 저장하지 않음
+- `downloadError`에 실패 원인을 보존
+
+즉 **원본 다운로드 성공 여부와 Evidence 분석은 분리**되어 있다.
+
+## 35.7 실제 원자료 PDF → 필지 Evidence
+
+`source_applicability_probe.js`에서 OCR 허용, `ocrMaxPages=100`으로 실제 PDF를 분석:
+
+```
+status        = CONFIRMED_BY_OCR
+matchCount    = 1
+page          = 6
+variant       = 백석동1116번지
+likelyArea    = 16,028.5
+```
+
+실제 OCR 문맥에서:
+
+```
+가구 및 획지의 규모와 조성에 관한 도시관리계획 결정(변경)조서
+
+스1-1 ... 백석동 1116번지 |16,028.5|16,028.5
+```
+
+가 확인됐다.
+
+이는 고시 제목 metadata가 아니라 **실제 원본 PDF 6페이지의 원자료 Evidence**다.
+
+## 35.8 analyzeUrbanPlan 전체 서비스 검증
+
+동일 PDF를 직접 `analyzeUrbanPlan()`으로 호출하고:
+
+```
+download=true
+enableOcrFallback=true
+ocrMaxPages=100
+ocrScale=2.5
+saveMatchedImages=true
+```
+
+를 지정한 결과:
+
+```
+success                  = true
+applicability.status     = CONFIRMED_BY_OCR
+matchCount               = 1
+matchedPages             = [6]
+matchedVariants          = ["백석동1116번지"]
+likelyArea               = 16,028.5
+pageCount                = 31
+ocrAttempted             = 1
+ocrSkipped               = 0
+```
+
+즉 **개별 probe가 아니라 실제 운영 서비스의 최종 반환값까지 필지 Evidence가 전달되는 것이 확인됐다.**
+
+## 35.9 시행지침 / 결정도 / 지형도면 자료 분류
+
+실제 31페이지 PDF에서 source-material 범위가 다음처럼 식별됐다.
+
+```
+시행지침
+  pages: 16~19
+  19쪽: "게재생략" 관련 warning
+  fullTextAvailable: false
+
+결정도
+  pages: 20~27
+
+지형도면
+  pages: 28~31
+```
+
+관련 페이지 이미지는 실제 다음 경로에 저장됐다.
+
+```
+downloads\notice\44130NTC202001020001\evidence_images\
+```
+
+확인된 예:
+
+```
+page_006.png
+page_016.png
+page_019.png
+page_020.png
+...
+page_031.png
+```
+
+결정도 20~27쪽과 지형도면 28~31쪽은 **중간 페이지까지 전체 관련 범위가 이미지로 보존**된다.
+
+## 35.10 중요한 Evidence 판정 원칙
+
+다음 세 가지를 서로 혼동하지 않는다.
+
+### A. 고시 metadata match
+
+고시 제목/설명에 지번이 있다는 것:
+
+```
+NOTICE_METADATA_MATCHED
+```
+
+이것만으로 원자료 적용성을 확정하지 않는다.
+
+### B. 원자료 text/OCR Evidence
+
+실제 PDF/HWP/HWPX 원자료에서 지번/필지/면적 등이 확인된 것:
+
+```
+CONFIRMED_BY_TEXT
+CONFIRMED_BY_OCR
+```
+
+현재 천안 샘플은 이 단계까지 실제 확인됐다.
+
+### C. 공간적 도면 적용성
+
+결정도/지형도면의 특정 폴리곤·색상·경계 안에 해당 필지가 실제로 들어가는지:
+
+```
+아직 자동 확정하지 않음
+```
+
+OCR로 도면에서 글자가 발견되는 것만으로 공간 포함을 확정하지 않는다.
+
+## 35.11 현재 구현된 주요 보강 사항
+
+기존 tests/probe 전체 대조 과정에서 실제 운영 코드에 반영한 주요 항목:
+
+- 지번 공백/표기 변형 정규화
+- 원자료 주변 문맥의 면적 추출
+- HWPX 별도 분류 및 `Contents/sectionN.xml` 추출
+- ZIP 내부 HWPX 처리
+- 이미지 원자료 OCR 보조 경로
+- 첨부 하나의 실패가 전체 source analysis를 중단하지 않도록 격리
+- `downloadError` 보존
+- EUM 내부 download session 정보의 외부 JSON 노출 방지
+- detail seq/detail URL 등 비민감 trace 보존
+- 다운로드 응답 truncation 검출
+- EUM session Cookie 누적
+- `analyze_urban_plan`의 OCR `enableOcrFallback / ocrMaxPages / ocrScale` 제어
+- OCR source-material 메타데이터 보존
+- 결정도/지형도면 전체 관련 페이지 이미지 보존
+- metadata-only match와 실제 source evidence 분리
+
+## 35.12 아직 구현하지 않은 다음 단계
+
+현재까지는 **문서/원자료 Evidence와 도면 관련 페이지 확보**까지 완료됐다.
+
+다음 구현 대상은:
+
+```
+결정도 / 지형도면
+        ↓
+필지 geometry
+        +
+공식 공간자료 geometry
+        ↓
+공간관계 계산
+        ↓
+실제 공간 적용성 Evidence
+```
+
+이다.
+
+토지이음 공식 데이터개방의 지구단위계획구역 공간자료(SHP 계열)를 우선 후보로 검토하되, **실제 다운로드 요청과 실제 파일/필드 구조를 확인하기 전에는 endpoint/schema/parser를 추측해서 구현하지 않는다.**
+
+## 35.13 다음 대화에서 반드시 할 일
+
+새 대화에서는:
+
+1. 현재 GitHub branch의 실제 HEAD 재조회
+2. 실제 HEAD의 `AI_HANDOFF.md` 확인
+3. 관련 `src/` 실제 코드 확인
+4. 필요하면 사용자의 로컬 sync
+5. 이미 통과한 OCR/다운로드 테스트를 중복 반복하지 않음
+6. 다음 목표인 **공간 Evidence 구현/검증**을 실제 소스자료에 맞춰 진행
+
+한다.
+
