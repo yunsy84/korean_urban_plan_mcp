@@ -642,7 +642,7 @@ pass    4
 fail    0
 ```
 
-이번 감사에서 `tests/index.test.js`가 9개, `tests/dist_sync.test.js`가 1개로 확장되어 **현재 회귀 테스트 정의는 총 10개**입니다. 이 10개는 최신 코드 수정 후 아직 Windows에서 재실행하지 않았습니다.
+이번 감사에서 `tests/index.test.js`가 9개, `tests/dist_sync.test.js`가 1개로 확장되어 **현재 회귀 테스트 정의는 총 10개**입니다. 2026-09-26 Windows에서 최신 HEAD 기준으로 실제 실행했고 **10 PASS / 0 FAIL / 0 SKIP**을 확인했습니다.
 
 통과 테스트:
 
@@ -673,7 +673,7 @@ EUM detail seq
 필지 적용성 Evidence
 ```
 
-자동 테스트 4/4 PASS는 위 외부 EUM 전체 체인이 정확하다는 의미가 아닙니다.
+자동 회귀 테스트 10/10 PASS는 위 외부 EUM 전체 체인이 정확하다는 의미가 아닙니다. 외부 EUM 전체 체인은 별도의 실데이터 end-to-end 검증이 필요합니다.
 
 ---
 
@@ -852,3 +852,63 @@ npm run build
 npm test
 ```
 
+
+
+---
+
+## 27. 2026-09-26 최신 Windows 실제 검증
+
+최신 `urban-plan-source-evidence` 브랜치를 Windows 로컬에 동기화한 뒤 빌드와 회귀 테스트를 실제 실행했다.
+
+### Git 상태
+
+```text
+Repository : yunsy84/korean_urban_plan_mcp
+Branch     : urban-plan-source-evidence
+Local HEAD : 5b55d210155b560921de8dff780fd37109206472
+Remote HEAD: 5b55d210155b560921de8dff780fd37109206472
+Dirty      : False
+```
+
+### Build
+
+```text
+npm run build
+→ PASS
+dist/server.js updated as a runtime wrapper for src/server.js
+```
+
+### Regression
+
+```text
+tests 10
+pass 10
+fail 0
+skipped 0
+```
+
+HWPX production applicability test도 실제 실행되어 통과했다.
+
+```text
+✔ HWPX source is extracted through the production applicability path
+```
+
+따라서 현재 회귀 테스트 기준선은 **10/10 PASS**다.
+
+### 다음 단계
+
+다음은 테스트 수를 늘리는 작업이 아니라 실제 EUM 자료 1건의 end-to-end 검증이다.
+
+```text
+PNU
+→ jigu_info
+→ notice_code
+→ 실제 detail seq
+→ 고시 상세
+→ 첨부파일
+→ 원본 다운로드
+→ source_applicability
+→ 대상 필지 Evidence
+```
+
+기존 `tests/urban_plan_download_probe.js`를 우선 사용하며, 검증용 PNU/주소/고시번호를 운영 코드에 하드코딩하지 않는다.
