@@ -977,3 +977,26 @@ ocrScale          : 2.5
 2026-09-26 실제 천안시 고시 제2020-2호 PDF는 직접 `source_applicability` probe에서 `ocrMaxPages=100`으로 페이지 6의 `백석동1116번지` / `16,028.5㎡` Evidence가 확인되었다.
 
 다음 검증은 동일 설정을 `analyzeUrbanPlan()` 전체 서비스 호출에 전달하여 최종 MCP 반환값에서도 해당 Evidence가 유지되는지 확인한다.
+
+
+---
+
+## 31. 2026-09-26 analyzeUrbanPlan 전체 서비스 Evidence 확인
+
+실제 Windows 실행에서 `analyzeUrbanPlan()` 최종 반환값까지 다음 결과를 확인했다.
+
+```text
+success                  = true
+applicability.status     = CONFIRMED_BY_OCR
+matchCount               = 1
+matchedPages             = [6]
+matchedVariants          = ["백석동1116번지"]
+likelyArea               = 16,028.5
+pageCount                = 31
+```
+
+따라서 실제 EUM 원자료 PDF가 `analyzeUrbanPlan()`을 통해 OCR Evidence로 최종 반환되는 경로가 확인되었다.
+
+HWP는 실제 EUM 응답이 47-byte HTML 오류였기 때문에 원본으로 저장하지 않고 `downloadError`로 보존한다.
+
+다음 단계는 동일 OCR 테스트 반복이 아니라 PDF 내부의 결정도·지형도면 페이지와 공간 적용성 Evidence를 별도로 확인하는 것이다.
