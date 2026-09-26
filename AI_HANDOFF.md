@@ -1625,3 +1625,42 @@ applicability.matchedSources[0].ocrPages
 ```
 
 를 확인한다.
+
+
+---
+
+## 33. 2026-09-26 결정도·지형도면 전체 페이지 이미지 보존 보정
+
+실제 OCR 결과에서 결정도 범위가 20~27쪽, 지형도면 범위가 28~31쪽으로 식별되었지만 기존 `saveMatchedImages=true`는 OCR marker가 있는 페이지만 이미지로 저장했다.
+
+그 결과 결정도/지형도면 범위 안의 중간 페이지가 `sourceMaterials.pages`에는 포함되면서도 `ocrPages[].imagePath`는 없는 상태가 될 수 있었다.
+
+### 최소 수정
+
+`evidence_locator.locatePdfEvidence()`에서 `saveMatchedImages=true`이고 `imageOutputDir`가 있으면:
+
+```text
+decisionDrawings.pages
++
+terrainMaps.pages
+```
+
+의 전체 페이지를 추가 렌더링하여 이미지로 보존한다.
+
+이미 기존 OCR 단계에서 이미지가 저장된 페이지는 재렌더링하지 않는다.
+
+이 변경은 **공간 적용성을 자동 판정하는 것이 아니다.**
+
+목적은:
+
+```text
+OCR → source-material 범위 식별
+             ↓
+결정도/지형도면 전체 관련 페이지 이미지 보존
+             ↓
+사람 또는 후속 공간분석 모듈이 실제 도면을 검토
+```
+
+로 원자료 추적성을 확보하는 것이다.
+
+다음 Windows 검증에서는 동일한 실제 PDF에 `saveMatchedImages=true`로 실행하여 결정도 20~27쪽과 지형도면 28~31쪽의 `ocrPages[].imagePath`가 모두 생성되는지 확인한다.
