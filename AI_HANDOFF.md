@@ -1664,3 +1664,50 @@ OCR → source-material 범위 식별
 로 원자료 추적성을 확보하는 것이다.
 
 다음 Windows 검증에서는 동일한 실제 PDF에 `saveMatchedImages=true`로 실행하여 결정도 20~27쪽과 지형도면 28~31쪽의 `ocrPages[].imagePath`가 모두 생성되는지 확인한다.
+
+
+---
+
+## 34. 2026-09-26 결정도·지형도면 이미지 보존 실제 확인
+
+최신 `saveMatchedImages=true` 실행에서 실제로 다음 공간자료 페이지 이미지가 생성되었다.
+
+```text
+결정도 : 20, 21, 22, 23, 24, 25, 26, 27
+지형도면: 28, 29, 30, 31
+필지 Evidence: 6
+```
+
+각 페이지의 `ocrPages[].imagePath`가 실제 `downloads/notice/44130NTC202001020001/evidence_images/` 아래에 생성된 것을 확인했다.
+
+중간 페이지(예: 결정도 22~27, 지형도면 29)의 OCR marker가 없어도 source-material 범위에 포함되면 이미지를 보존하도록 보정한 코드가 실제 실행에서 동작했다.
+
+중요:
+
+```text
+source-material page 식별
+≠
+필지의 공간적 포함 확정
+```
+
+따라서 다음 단계는 이 이미지를 OCR로 다시 판단하는 것이 아니라 공식 공간데이터와 필지 geometry를 이용하는 방향으로 진행한다.
+
+### 공식 공간자료 방향 확인
+
+토지이음 데이터개방의 공식 `지구단위계획구역 SHP CSV`는 지구단위계획구역의 도형/속성정보 및 상세 규제정보를 제공하고, 기준일자별 전국 ZIP 파일을 제공한다. 데이터 페이지에는 월간 갱신 정보가 표시되어 있다.
+
+향후 공간 적용성 구조는 다음 데이터 계약을 우선한다.
+
+```text
+parcelGeometry
++
+EUM district-plan polygon geometry
+↓
+공간관계(intersects / within 등)
+↓
+plan/source evidence
+```
+
+`korean_urban_plan_mcp`가 `korean_land_mcp`를 내부 호출하지 않는 원칙은 유지한다. parcel geometry는 호출자가 데이터 계약으로 전달하는 방향을 유지한다.
+
+아직 실제 SHP 파일의 다운로드 요청과 내부 필드 구조를 실행으로 확인하지 않았으므로, SHP parser/downloader를 추측하여 구현하지 않는다.
