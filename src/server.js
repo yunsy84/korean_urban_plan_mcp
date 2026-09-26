@@ -299,7 +299,7 @@ server.registerTool(
   "analyze_urban_plan",
   {
     description:
-      "고시의 텍스트 원자료에서 대상 필지 적용 여부를 확인하고, EUM이 제공한 원본 첨부자료 전체의 로컬 보존 위치를 반환합니다. 오래된 결정도·지형도면을 필지 OCR로 판독한다고 가정하지 않으며 자연어 요약이나 법률 판단은 하지 않습니다.",
+      "고시의 텍스트 원자료에서 대상 필지 적용 여부를 확인하고, EUM이 제공한 원본 첨부자료 전체의 로컬 보존 위치를 반환합니다. OCR은 기본 24페이지까지 수행하며 ocrMaxPages로 필요시 범위를 늘릴 수 있습니다. 오래된 결정도·지형도면을 필지 OCR로 판독한다고 가정하지 않으며 자연어 요약이나 법률 판단은 하지 않습니다.",
 
     inputSchema:
       z.object({
@@ -323,7 +323,22 @@ server.registerTool(
 
         saveMatchedImages:
           z.boolean()
-            .default(false)
+            .default(false),
+
+        enableOcrFallback:
+          z.boolean()
+            .default(true),
+
+        ocrMaxPages:
+          z.number()
+            .int()
+            .min(1)
+            .default(24),
+
+        ocrScale:
+          z.number()
+            .positive()
+            .default(2.5)
       })
   },
 
