@@ -1411,3 +1411,72 @@ node -e "import('./src/urban_plan_service.js').then(async ({analyzeUrbanPlan}) =
 ```
 
 이 테스트에서는 기존 cache가 정상인 PDF는 재사용하고, 이미 확인된 문제가 있는 HWP는 동일하게 실패 metadata로 남는지까지 함께 확인한다.
+
+
+---
+
+## 30. 2026-09-26 analyzeUrbanPlan OCR 설정 전달 보정
+
+실제 PDF OCR probe에서는 `--ocr-max-pages 100`으로 `CONFIRMED_BY_OCR`가 확인되었지만, 동일 PDF를 `analyzeUrbanPlan()`으로 호출하면 기본 `ocrMaxPages = 24` 때문에 OCR이 생략되는 차이가 확인되었다.
+
+이 문제를 실제 운영 경로에서 해소하기 위해 최소 수정했다.
+
+### 변경
+
+`src/urban_plan_service.js`
+
+`analyzeUrbanPlan()` 입력에 추가:
+
+- `enableOcrFallback = true`
+- `ocrMaxPages = 24`
+- `ocrScale = 2.5`
+
+그리고 이 값을 `analyzeTextApplicability()`에 그대로 전달한다.
+
+`src/server.js`
+
+MCP `analyze_urban_plan` 입력 schema에 다음을 추가:
+
+- `enableOcrFallback`
+- `ocrMaxPages`
+- `ocrScale`
+
+기본값은 기존 정책을 유지한다.
+
+```text
+enableOcrFallback = true
+ocrMaxPages       = 24
+ocrScale          = 2.5
+```
+
+따라서 비용 제어를 위해 기본 24페이지 정책은 유지하면서, 실제 자료가 24페이지를 초과하고 OCR 확인이 필요한 경우 호출자가 `ocrMaxPages`를 증가시킬 수 있다.
+
+### 검증 목적
+
+다음 실제 서비스 호출에서:
+
+```text
+analyzeUrbanPlan(
+  pnu,
+  jibun,
+  noticeCode,
+  download=true,
+  ocrMaxPages=100
+)
+```
+
+으로 동일 PDF의 OCR Evidence가 최종 `analyzeUrbanPlan()` 반환값까지 전달되는지를 확인한다.
+
+예상 핵심 결과:
+
+```text
+success = true
+applicability.status = CONFIRMED_BY_OCR
+applicability.matchCount = 1
+applicability.matchedSources[0].matchedPages = [6]
+applicability.matchedSources[0].matchedVariants = ["백석동1116번지"]
+applicability.matchedSources[0].snippet = 실제 OCR 문맥
+```
+
+여기까지 확인되면 현재 샘플의 **실제 EUM → 원자료 → OCR Evidence → 운영 서비스 반환** 체인이 닫힌다.
+
