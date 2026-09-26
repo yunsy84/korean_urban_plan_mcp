@@ -958,3 +958,22 @@ PDF 6페이지의 획지 관련 결정(변경)조서에서 `백석동 1116번지
 이는 고시 metadata가 아니라 **실제 원본 PDF의 OCR Evidence**다.
 
 다만 결정도/지형도면의 공간적 경계 판독과는 별개다. 다음 단계에서는 이 Evidence가 개별 probe뿐 아니라 `analyzeUrbanPlan()` 최종 서비스 반환값에서도 그대로 유지되는지 확인한다.
+
+
+---
+
+## 30. analyzeUrbanPlan OCR 설정
+
+`analyze_urban_plan`은 OCR 비용을 제어할 수 있도록 다음 입력을 지원한다.
+
+```text
+enableOcrFallback : true
+ocrMaxPages       : 24
+ocrScale          : 2.5
+```
+
+기본값은 기존 정책을 유지하며, 24페이지를 초과하는 실제 고시 원자료에서 OCR 확인이 필요한 경우 호출자가 `ocrMaxPages`를 증가시킬 수 있다.
+
+2026-09-26 실제 천안시 고시 제2020-2호 PDF는 직접 `source_applicability` probe에서 `ocrMaxPages=100`으로 페이지 6의 `백석동1116번지` / `16,028.5㎡` Evidence가 확인되었다.
+
+다음 검증은 동일 설정을 `analyzeUrbanPlan()` 전체 서비스 호출에 전달하여 최종 MCP 반환값에서도 해당 Evidence가 유지되는지 확인한다.
