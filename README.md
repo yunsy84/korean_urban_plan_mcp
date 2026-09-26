@@ -1060,3 +1060,262 @@ ocrPages
 공식 공간 적용성 단계는 토지이음 데이터개방의 `지구단위계획구역 SHP CSV`를 source로 사용하고, 호출자가 전달하는 parcel geometry와 공간관계를 계산하는 방식으로 확장한다.
 
 실제 SHP 다운로드 요청과 필드 구조가 아직 실행 검증되지 않았으므로 관련 endpoint나 schema를 추측하여 구현하지 않는다.
+
+
+---
+
+# 35. 2026-09-26 현재 작업 기준 및 다음 단계
+
+> 이 섹션은 현재 대화에서 실제 실행으로 확인된 최신 상태를 요약한다. 과거 섹션의 오래된 검증 문구와 충돌할 경우 **실제 GitHub HEAD와 실제 코드**, 그리고 이 최신 실행 기록을 기준으로 한다.
+
+## 현재 Git 기준
+
+```text
+Repository : yunsy84/korean_urban_plan_mcp
+Branch     : urban-plan-source-evidence
+현재 HEAD  : c4049bef46231c68aee34fadf4ec48839fea262b (문서 갱신 직전 확인값)
+Local path : C:\\AI_BOT_SEO\\korean_urban_plan_mcp
+```
+
+새 대화에서는 위 SHA를 고정 기준으로 사용하지 말고 실제 현재 HEAD를 다시 조회한다.
+
+## 프로젝트 역할
+
+`korean_urban_plan_mcp`는 메인 Agent/로컬 LLM이 호출하는 **독립 Urban Plan 서브 MCP**다.
+
+```
+Main Agent / Local LLM
+       ├─ korean_land_mcp
+       │    └─ V-World 토지 속성 / 용도지역 / 시설 / 타법 지정
+       │
+       ├─ korean_urban_plan_mcp
+       │    └─ 토지이음(EUM) 도시계획 / 지구단위계획
+       │       고시 / 원자료 / 필지 Evidence
+       │
+       └─ law_mcp
+            └─ 법령 / 자치법규
+```
+
+Urban Plan MCP는 내부에서 `korean_land_mcp`를 호출하지 않는다. 이후 연결은 PNU/좌표/WKT/parcel geometry 등의 데이터 계약으로 한다.
+
+## 2026-09-26 회귀 테스트 실제 결과
+
+사용자 Windows 로컬에서 최신 코드 기준:
+
+```
+npm run build → PASS
+
+npm test
+tests   10
+pass    10
+fail     0
+skip     0
+```
+
+HWPX production applicability 경로도 실제 실행되어 PASS했다.
+
+## 실제 EUM end-to-end 검증
+
+검증용 샘플:
+
+```
+PNU   : 4413310300111160000
+지번  : 백석동 1116
+고시  : 44130NTC202001020001
+번호  : 2020-2
+일자  : 2020-01-02
+기관  : 천안시
+```
+
+실제 연결 확인:
+
+```
+PNU
+→ EUM noticeCount 18
+→ 2020-2 고시
+→ detail seq 402467 / 48400
+→ 첨부 후보 2개
+→ PDF 원본
+→ HWP 실패 metadata
+→ source_applicability
+→ analyzeUrbanPlan
+→ 최종 Evidence
+```
+
+## 실제 원본 파일 상태
+
+다운로드 루트:
+
+```
+C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads
+```
+
+PDF:
+
+```
+downloads\\notice\\44130NTC202001020001\\001_천안시고시제2020-2호.pdf
+```
+
+- 실제 PDF
+- 11,299,336 bytes
+- 원본 보존
+- 분석 결과와 별도 관리
+
+HWP:
+
+- 실제 `FileDownload.do` POST metadata 확인
+- 응답 47 bytes
+- `text/html; charset=euc-kr`
+- HTML 오류 응답으로 검증되어 정상 HWP로 저장하지 않음
+- `downloadError`로 실패 원인 보존
+
+즉 **원본 확보와 분석 결과를 분리**한다.
+
+## 실제 필지 Evidence
+
+동일 PDF를 OCR 허용 상태로 실제 분석:
+
+```
+status          : CONFIRMED_BY_OCR
+matchCount      : 1
+page            : 6
+variant         : 백석동1116번지
+likelyArea      : 16,028.5
+pageCount       : 31
+```
+
+실제 문맥:
+
+```
+가구 및 획지의 규모와 조성에 관한 도시관리계획 결정(변경)조서
+...
+스1-1 ... 백석동 1116번지 |16,028.5|16,028.5
+```
+
+따라서 현재는 단순 고시 제목 일치가 아니라 **실제 PDF 원자료에서 지번과 면적을 함께 확인한 상태**다.
+
+## 시행지침 / 결정도 / 지형도면
+
+실제 PDF 31페이지에서:
+
+```
+시행지침 : 16~19쪽
+  · 19쪽: 게재생략 관련 warning
+
+결정도   : 20~27쪽
+
+지형도면 : 28~31쪽
+```
+
+이 범위가 식별되었다.
+
+`saveMatchedImages=true` 실행으로 관련 페이지 이미지가 실제 저장되었다.
+
+```
+downloads\\notice\\44130NTC202001020001\\evidence_images\\
+page_006.png
+page_016.png
+page_019.png
+page_020.png
+...
+page_031.png
+```
+
+결정도/지형도면의 모든 관련 범위 페이지를 보존하는 기능이 현재 코드에 반영되어 있다.
+
+## Evidence의 세 단계
+
+### 1. metadata
+
+고시 제목/설명에 지번이 있다는 것.
+
+```
+NOTICE_METADATA_MATCHED
+```
+
+원자료 적용 확정이 아니다.
+
+### 2. 문서 Evidence
+
+실제 PDF/HWP/HWPX 등 원자료에서 지번/필지/면적을 찾음.
+
+```
+CONFIRMED_BY_TEXT
+CONFIRMED_BY_OCR
+```
+
+천안 샘플은 이 단계까지 실제 확인됨.
+
+### 3. 공간 Evidence
+
+결정도/지형도면의 실제 도형/경계 안에 필지가 들어가는지 판단.
+
+현재 **자동 확정하지 않는다.**
+
+도면 OCR에서 글자가 보였다는 것만으로 공간 포함을 확정하지 않는다.
+
+## 현재 코드에 반영된 주요 보강
+
+- 지번 표기/공백 정규화
+- 면적 문맥 추출
+- HWPX 분리 추출
+- ZIP 내부 HWPX 처리
+- 이미지 OCR 보조
+- 첨부별 오류 격리
+- `downloadError` 보존
+- EUM 내부 Cookie / 다운로드 request metadata 보호
+- detail seq / URL trace 보존
+- 다운로드 truncation 검출
+- EUM session Cookie 누적
+- `analyze_urban_plan` OCR 설정 노출
+- OCR source-material metadata 보존
+- 결정도/지형도면 관련 전체 페이지 이미지 보존
+- metadata match와 source-document Evidence 분리
+
+## 다음 단계
+
+현재까지:
+
+```
+원본 확보
+→ 원본 보존
+→ 필지 문서 Evidence
+→ 시행지침/결정도/지형도면 범위 식별
+→ 관련 페이지 이미지 보존
+→ analyzeUrbanPlan 최종 반환
+```
+
+까지 확인했다.
+
+다음 구현/검증 목표는 **결정도·지형도면의 공간 Evidence**다.
+
+우선순위:
+
+```
+실제 토지이음 공식 공간자료 확보
+→ 실제 파일 형식/필드 확인
+→ 필지 geometry와 계획구역 geometry 연결
+→ 공간관계 계산
+→ 결과를 고시/도면 Evidence와 연결
+```
+
+공식 공간자료의 실제 다운로드 요청과 실제 파일/필드 구조를 확인하기 전에는 endpoint, schema, parser를 추측하여 구현하지 않는다.
+
+## 새 대화에서 작업 재개 방법
+
+새 대화 시작 시:
+
+```
+1. GitHub 현재 HEAD 조회
+2. AI_HANDOFF.md 확인
+3. 관련 src 파일 실제 확인
+4. 로컬 sync 필요 여부 확인
+5. 이미 통과한 10개 회귀 테스트와 PDF OCR을 불필요하게 반복하지 않음
+6. 공간 Evidence 단계로 계속 진행
+```
+
+현재 작업 기준 문서:
+
+- `AI_HANDOFF.md`
+- `README.md`
+
