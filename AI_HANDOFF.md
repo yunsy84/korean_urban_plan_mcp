@@ -1563,3 +1563,65 @@ EUM PNU
 ```
 
 다음 작업은 같은 OCR 성공을 반복하는 것이 아니라, 현재 31페이지 PDF의 `sourceMaterials` 중 결정도·지형도면 페이지 범위를 실제로 확인하고, 그 자료를 공간 Evidence 대상으로 분리하는 것이다.
+
+
+---
+
+## 32. 2026-09-26 OCR 공간자료 결과 전달 누락 보정
+
+실제 `analyzeUrbanPlan()` 실행에서 OCR 필지 Evidence 자체는 정상 반환되었으나, `evidence_locator.locatePdfEvidence()`가 반환한 공간자료 정보가 `source_applicability.js`의 `ocrEvidence`에 포함되지 않아:
+
+- `sourceMaterials`
+- OCR 페이지별 `imagePath`
+
+가 최종 서비스 결과에서 보이지 않는 것이 확인되었다.
+
+### 최소 수정
+
+`src/source_applicability.js`의 PDF source 결과에 다음 필드를 보존한다.
+
+```text
+ocrSourceMaterials = ocr?.sourceMaterials ?? null
+ocrPages           = ocr?.pages ?? []
+```
+
+기존 `ocrEvidence`의 parcel evidence 구조는 그대로 유지한다.
+
+따라서 의미를 분리한다.
+
+```text
+ocrEvidence
+  → 대상 필지 OCR evidence
+
+ocrSourceMaterials
+  → 시행지침 / 결정도 / 지형도면 등 source-material 분류
+
+ocrPages
+  → OCR 페이지별 page / jibunHits / roles / matched / imagePath
+```
+
+`saveMatchedImages=true`일 때 `evidence_locator`가 생성한 페이지 이미지 경로도 `ocrPages[].imagePath`로 최종 반환된다.
+
+### 현재 상태
+
+기존 실제 실행에서:
+
+```text
+CONFIRMED_BY_OCR
+page 6
+백석동1116번지
+16,028.5㎡
+```
+
+는 이미 확인되었다.
+
+이번 보정의 목적은 **결정도/지형도면 등의 공간자료 메타데이터와 저장된 OCR 페이지 이미지를 최종 운영 반환값까지 잃지 않는 것**이다.
+
+다음 검증은 동일 PDF에 대해 `saveMatchedImages=true`로 실제 서비스 반환의:
+
+```text
+applicability.matchedSources[0].ocrSourceMaterials
+applicability.matchedSources[0].ocrPages
+```
+
+를 확인한다.
