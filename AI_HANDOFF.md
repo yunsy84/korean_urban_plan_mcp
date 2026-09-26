@@ -1121,7 +1121,7 @@ downloads/
 
 ### 이번 단계 이후 검증 원칙
 
-이 문서 작성 시점에는 위 변경사항을 GitHub 실제 브랜치에 commit했다. 이 대화 환경에서는 사용자의 Windows 작업 폴더에서 최신 변경 후 `npm test`를 다시 실행한 결과를 확보하지 않았으므로, **10/10 PASS라고 단정하지 않는다.**
+위 변경사항을 GitHub 실제 브랜치에 commit한 뒤, 2026-09-26 사용자의 Windows 작업 폴더에서 최신 HEAD 기준으로 `npm test`를 실제 실행하여 **10/10 PASS, 0 FAIL, 0 SKIP**을 확인했다.
 
 다음 실제 Windows 검증은 새로운 EUM discovery를 다시 하는 것이 아니라:
 
