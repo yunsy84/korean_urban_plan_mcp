@@ -1480,3 +1480,86 @@ applicability.matchedSources[0].snippet = 실제 OCR 문맥
 
 여기까지 확인되면 현재 샘플의 **실제 EUM → 원자료 → OCR Evidence → 운영 서비스 반환** 체인이 닫힌다.
 
+
+
+---
+
+## 31. 2026-09-26 analyzeUrbanPlan 전체 서비스 Evidence 확인
+
+최신 코드로 실제 Windows에서 `analyzeUrbanPlan()`을 직접 호출했다.
+
+입력:
+
+```text
+pnu              = 4413310300111160000
+jibun            = 백석동 1116
+noticeCode       = 44130NTC202001020001
+download         = true
+enableOcrFallback= true
+ocrMaxPages      = 100
+ocrScale         = 2.5
+```
+
+실제 결과:
+
+```text
+success                  = true
+applicability.status     = CONFIRMED_BY_OCR
+applicability.matchCount = 1
+ocrAttempted             = 1
+ocrSkipped               = 0
+```
+
+최종 `matchedSources[0]`에 다음 Evidence가 보존되었다.
+
+```text
+fileType       = pdf
+role           = notice_document
+matchMethod    = ocr
+matchedVariants= ["백석동1116번지"]
+matchedPages   = [6]
+likelyArea     = 16,028.5
+pageCount      = 31
+```
+
+원자료:
+
+```text
+PDF bytes              = 11,299,336
+preservedOriginalCount = 1
+failedDownloadCount    = 1
+```
+
+HWP는 앞선 실제 EUM 다운로드와 동일하게 47-byte HTML 오류 응답으로 거부되어 `downloadError`로 보존되었다.
+
+따라서 현재까지 실제로 닫힌 운영 체인은:
+
+```text
+EUM PNU
+→ 18개 관련 고시
+→ 2020-2 고시
+→ detail seq 402467 / 48400
+→ 첨부 후보 2개
+→ 정상 PDF 원자료
+→ analyzeUrbanPlan()
+→ OCR
+→ PDF 6페이지
+→ 백석동1116번지
+→ 16,028.5㎡
+→ 최종 서비스 반환
+```
+
+### 현재 한계
+
+이 Evidence는 문서의 필지 조서에서 실제 지번과 면적이 함께 확인된 것이다.
+
+아직 다음은 별도 검증 대상이다.
+
+```text
+결정도 / 지형도면
+→ 해당 필지가 공간적으로 어느 구역에 속하는지
+→ OCR 문자열만으로 확정하지 않음
+→ 원자료 페이지/도면의 시각적 검토가 필요
+```
+
+다음 작업은 같은 OCR 성공을 반복하는 것이 아니라, 현재 31페이지 PDF의 `sourceMaterials` 중 결정도·지형도면 페이지 범위를 실제로 확인하고, 그 자료를 공간 Evidence 대상으로 분리하는 것이다.
