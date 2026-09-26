@@ -946,6 +946,15 @@ async function analyzeOneTextSource(
         ocr?.ocrPsmModes ??
         ocrPsmModes,
       ocrEvidence,
+      ocrSourceMaterials:
+        ocr?.sourceMaterials ??
+        null,
+      ocrPages:
+        Array.isArray(
+          ocr?.pages
+        )
+          ? ocr.pages
+          : [],
       ocrWarnings:
         ocr?.warnings ?? [],
       ocrError:
