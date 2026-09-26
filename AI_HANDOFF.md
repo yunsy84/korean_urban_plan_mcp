@@ -1348,3 +1348,66 @@ OCR match
 중 어느 경로인지 구분하는 것이다.
 
 OCR에서도 Evidence가 발견되지 않으면 그때부터는 결정도/지형도면 같은 시각자료의 공간 적용성을 어떻게 다룰 것인지 별도로 검토한다. 텍스트/OCR 부재만으로 미적용 판정을 내리지 않는다.
+
+
+---
+
+## 29. 2026-09-26 실제 PDF OCR Evidence 확인
+
+동일하게 확보된 천안시 고시 제2020-2호 PDF에 대해 `source_applicability.js` production-path probe를 OCR 활성화 상태로 실행했다.
+
+실제 결과:
+
+```text
+status                  : CONFIRMED_BY_OCR
+matchCount              : 1
+source evidence count   : 1
+ocr attempted           : 1
+ocr skipped             : 0
+matched page            : 6
+matched variant         : 백석동1116번지
+```
+
+OCR snippet에서 다음 내용이 실제 확인되었다.
+
+```text
+... 가구 및 획지의 규모와 조성에 관한 도시관리계획 결정(변경)조서
+...
+스1-1 ... 백석동 1116번지 |16,028.5|16,028.5
+```
+
+OCR primary Evidence의 추출 면적:
+
+```text
+likelyArea : 16,028.5
+values     : 16,028.5 / 16,028.5
+```
+
+따라서 현재까지 이 샘플에 대해 다음이 실제 연결되었다.
+
+```text
+PNU
+→ EUM 관련 고시 18건
+→ 2020-2 고시
+→ detail seq 402467 / 48400
+→ PDF 원자료 11,299,336 bytes
+→ PDF 6페이지
+→ 백석동1116번지 OCR Evidence
+→ 16,028.5㎡
+```
+
+### 중요한 해석
+
+이 Evidence는 고시 상세 metadata에 지번이 있다는 수준이 아니라 **실제 PDF 원자료의 표에서 대상 지번과 면적이 함께 OCR로 확인된 것**이다.
+
+현재 상태는 텍스트/문서 Evidence 기준으로는 매우 구체적이지만, 결정도·지형도면의 공간적 경계를 자동 판정했다는 뜻은 아니다.
+
+다음 검증은 이 결과를 개별 probe가 아니라 `analyzeUrbanPlan()` 전체 서비스 반환값에서 동일하게 보존하는지 확인한다.
+
+권장 실행:
+
+```powershell
+node -e "import('./src/urban_plan_service.js').then(async ({analyzeUrbanPlan}) => { const r = await analyzeUrbanPlan({ pnu: '4413310300111160000', jibun: '백석동 1116', noticeCode: '44130NTC202001020001', download: true }); console.log(JSON.stringify({ success:r.success, notice:r.notice, applicability: { status:r.applicability.status, matchCount:r.applicability.matchCount, matchedSources:r.applicability.matchedSources, ocrSummary:r.applicability.ocrSummary }, sourcePackage:r.sourcePackage }, null, 2)); }).catch(e => { console.error(e.stack || e); process.exitCode=1; })"
+```
+
+이 테스트에서는 기존 cache가 정상인 PDF는 재사용하고, 이미 확인된 문제가 있는 HWP는 동일하게 실패 metadata로 남는지까지 함께 확인한다.
