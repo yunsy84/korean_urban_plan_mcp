@@ -19,7 +19,8 @@ function parseArgs(argv) {
     noticeCode: "",
     disableOcr: false,
     ocrMaxPages: 24,
-    ocrScale: 2.5
+    ocrScale: 2.5,
+    saveMatchedImages: false
   };
 
   while (args.length > 0) {
@@ -72,6 +73,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (token === "--save-matched-images") {
+      options.saveMatchedImages = true;
+      continue;
+    }
+
     if (token === "--help" || token === "-h") {
       console.log(`
 Usage:
@@ -87,6 +93,7 @@ Options:
   --disable-ocr
   --ocr-max-pages <n>
   --ocr-scale <n>
+  --save-matched-images
 
 Example:
 
@@ -140,6 +147,7 @@ async function main() {
   console.log(`OCR fallback : ${options.disableOcr ? "disabled" : "enabled"}`);
   console.log(`OCR max pages: ${options.ocrMaxPages}`);
   console.log(`OCR scale    : ${options.ocrScale}`);
+  console.log(`Save images  : ${options.saveMatchedImages}`);
 
   const result = await analyzeTextApplicability({
     pnu: options.pnu,
@@ -159,7 +167,14 @@ async function main() {
     noticeDir: path.dirname(filePath),
     enableOcrFallback: !options.disableOcr,
     ocrMaxPages: options.ocrMaxPages,
-    ocrScale: options.ocrScale
+    ocrScale: options.ocrScale,
+    saveMatchedImages: options.saveMatchedImages,
+    imageOutputDir: options.saveMatchedImages
+      ? path.join(
+          path.dirname(filePath),
+          "evidence_images"
+        )
+      : null
   });
 
   console.log("");
@@ -169,6 +184,7 @@ async function main() {
   console.log(`parcelNumberCandidates  : ${result.parcelNumberCandidateCount}`);
   console.log(`ocr attempted           : ${result.ocrSummary.attempted}`);
   console.log(`ocr skipped             : ${result.ocrSummary.skipped}`);
+  console.log(`source evidence count   : ${result.sourceEvidenceCount}`);
 
   if (result.ocrSummary.skippedReasons.length > 0) {
     console.log(
@@ -200,6 +216,29 @@ async function main() {
       if (source.snippet) {
         console.log("snippet:");
         console.log(source.snippet);
+      }
+
+      if (source.ocrEvidence?.primary) {
+        console.log("ocr primary:");
+        console.log(
+          JSON.stringify(
+            source.ocrEvidence.primary,
+            null,
+            2
+          )
+        );
+      }
+
+      if (source.ocrEvidence?.pages?.length) {
+        console.log(
+          `ocr evidence pages: ${source.ocrEvidence.pages.join(", ")}`
+        );
+      }
+
+      if (source.ocrWarnings?.length) {
+        console.log(
+          `ocr warnings: ${source.ocrWarnings.join(" | ")}`
+        );
       }
     }
   }
