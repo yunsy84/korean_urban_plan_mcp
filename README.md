@@ -1000,3 +1000,25 @@ pageCount                = 31
 HWP는 실제 EUM 응답이 47-byte HTML 오류였기 때문에 원본으로 저장하지 않고 `downloadError`로 보존한다.
 
 다음 단계는 동일 OCR 테스트 반복이 아니라 PDF 내부의 결정도·지형도면 페이지와 공간 적용성 Evidence를 별도로 확인하는 것이다.
+
+
+---
+
+## 32. OCR 공간자료 결과 보존
+
+실제 OCR 결과와 별도로 `evidence_locator`가 식별한 결정도·지형도면 등의 source-material 정보와 OCR 페이지 이미지는 최종 applicability 결과에서도 보존한다.
+
+```text
+ocrEvidence
+  → 대상 필지 OCR 근거
+
+ocrSourceMaterials
+  → 시행지침 / 결정도 / 지형도면 분류
+
+ocrPages
+  → OCR 페이지별 Evidence와 `imagePath`
+```
+
+`saveMatchedImages=true`로 호출하면 저장된 페이지 이미지는 `ocrPages[].imagePath`에서 추적할 수 있다.
+
+이 보정은 실제 OCR 성공 여부를 변경하지 않으며, 기존 `CONFIRMED_BY_OCR` 판정과 parcel evidence 구조를 유지하면서 공간자료 후속 검토에 필요한 원자료 추적 정보를 보존하기 위한 것이다.
