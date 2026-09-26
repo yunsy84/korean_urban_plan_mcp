@@ -54,7 +54,7 @@
 
 현재 remote:
 
-`origin -> https://github.com/yunsy84/test_file.git`
+`origin -> https://github.com/yunsy84/korean_urban_plan_mcp.git`
 
 GitHub Desktop에 포함된 Git 실행 파일을 사용한다.
 일반 PowerShell의 `git` 명령이 반드시 설치되어 있다고 가정하지 않는다.
@@ -65,7 +65,7 @@ GitHub Desktop에 포함된 Git 실행 파일을 사용한다.
 
 현재 이 문서를 기준으로 확인했던 로컬 프로젝트 상태는:
 - 실제 프로젝트 폴더: `C:\\AI_BOT_SEO\\korean_urban_plan_mcp`
-- 로컬 체크아웃 브랜치: `main`
+- 로컬 체크아웃 브랜치: `urban-plan-source-evidence`
 - 원격 브랜치: `origin/urban-plan-source-evidence`
 
 그러나 이 로컬 상태도 시간이 지나면 바뀔 수 있으므로 새 대화에서 다시 확인해야 한다.
@@ -1178,5 +1178,77 @@ source_applicability.js
 evidence_locator.js
 ```
 
-회귀 테스트는 `index.test.js` 9개 + `dist_sync.test.js` 1개로 총 10개 정의이며, 이번 변경 후 Windows 실행 결과는 아직 확보하지 않았다.
+회귀 테스트는 `index.test.js` 9개 + `dist_sync.test.js` 1개로 총 10개 정의이며, 2026-09-26 Windows에서 최신 HEAD `5b55d210155b560921de8dff780fd37109206472` 기준 실행 결과를 확보했다: **10 PASS / 0 FAIL / 0 SKIP**.
 
+
+
+---
+
+## 27. 2026-09-26 최신 Windows 실제 검증 결과
+
+사용자가 실제 Windows 로컬 프로젝트에서 다음 순서로 최신 GitHub 브랜치를 동기화하고 빌드/회귀 테스트를 실행했다.
+
+```powershell
+cd C:\AI_BOT_SEO\korean_urban_plan_mcp
+.\tools\sync_urban_plan.cmd
+npm run build
+npm test
+```
+
+### Git 동기화
+
+```text
+Branch      : urban-plan-source-evidence
+Local HEAD  : 5b55d210155b560921de8dff780fd37109206472
+Remote HEAD : 5b55d210155b560921de8dff780fd37109206472
+Dirty       : False
+```
+
+### Build
+
+```text
+npm run build → PASS
+dist/server.js updated as a runtime wrapper for src/server.js
+```
+
+### Regression Test
+
+```text
+tests 10
+pass 10
+fail 0
+skipped 0
+todo 0
+```
+
+특히 이전에 Python 실행 감지 오류 때문에 건너뛰던 HWPX 테스트도 실제 실행되어 통과했다.
+
+```text
+✔ HWPX source is extracted through the production applicability path
+```
+
+따라서 현재 회귀 테스트 기준선은 **10/10 PASS**로 확정한다.
+
+### 다음 실제 기능 검증 단계
+
+회귀 테스트가 완료되었으므로 동일한 unit test나 새로운 중복 probe를 계속 추가하지 않는다.
+
+다음 검증은 실제 EUM 자료 1건을 사용하여:
+
+```text
+PNU
+→ EUM jigu_info
+→ notice_code
+→ 실제 detail seq
+→ 고시 상세
+→ 첨부 요청 metadata
+→ 원본 다운로드
+→ source_applicability
+→ 대상 필지 Evidence
+```
+
+의 전체 연결을 확인한다.
+
+이 단계는 회귀 테스트와 별개의 **실데이터 end-to-end 검증**이다.
+
+기존 `tests/urban_plan_download_probe.js`를 우선 사용하며, 특정 주소/PNU/고시번호는 코드에 하드코딩하지 않는다.
