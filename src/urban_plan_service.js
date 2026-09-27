@@ -1180,7 +1180,6 @@ export async function analyzeDistrictPlanHistory({
   const getRetryMaxPages =
     detail => {
       if (
-        !hasUsableEvidence ||
         Number(
           detail
             ?.sourcePackage
