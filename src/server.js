@@ -14,7 +14,8 @@ import {
   searchUrbanPlanNotice,
   getNoticeDetailForPnu,
   getNoticeAttachmentsForPnu,
-  analyzeUrbanPlan
+  analyzeUrbanPlan,
+  analyzeDistrictPlanHistory
 } from "./urban_plan_service.js";
 
 const server =
@@ -357,6 +358,74 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  "analyze_district_plan_history",
+  {
+    description:
+      "PNU와 지번을 기준으로 Urban MCP가 확인한 EUM 도시계획 고시 이력을 그대로 순회하며 원본 첨부자료와 필지 Evidence를 분석합니다. 고시 이력 재선정은 하지 않으며 Evidence 분석과 OCR 비용 제어는 Urban MCP가 담당합니다.",
+
+    inputSchema:
+      z.object({
+        pnu:
+          z.string()
+            .regex(
+              /^\d{19}$/
+            ),
+
+        jibun:
+          z.string()
+            .min(1),
+
+        download:
+          z.boolean()
+            .default(true),
+
+        saveMatchedImages:
+          z.boolean()
+            .default(false),
+
+        enableOcrFallback:
+          z.boolean()
+            .default(true),
+
+        ocrMaxPages:
+          z.number()
+            .int()
+            .min(1)
+            .default(24),
+
+        ocrScale:
+          z.number()
+            .positive()
+            .default(2.5),
+
+        stopOnUsableEvidence:
+          z.boolean()
+            .default(true),
+
+        maxRetryPages:
+          z.number()
+            .int()
+            .min(1)
+            .default(64)
+      })
+  },
+
+  async (input) => {
+    try {
+      return textResult(
+        await analyzeDistrictPlanHistory(
+          input
+        )
+      );
+    } catch (error) {
+      return textError(
+        error
+      );
+    }
+  }
+);
+
 /*
  * ------------------------------------------------------------
  * discover_tools
@@ -390,7 +459,8 @@ server.registerTool(
         "search_urban_plan_notice",
         "get_notice_detail",
         "get_notice_attachments",
-        "analyze_urban_plan"
+        "analyze_urban_plan",
+        "analyze_district_plan_history"
       ],
 
       doesNotDo: [
