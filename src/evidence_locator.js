@@ -58,13 +58,24 @@ function normalize(value) {
 }
 
 function normalizeJibunVariants(jibun) {
-  const source = compact(jibun);
+  let source = compact(jibun);
   const result = new Set();
 
-  if (source) {
-    result.add(source);
-    result.add(normalize(source));
+  if (!source) {
+    return [];
   }
+
+  /*
+   * korean_land_mcp의 지번 표기 "1116 대"처럼
+   * 마지막 1글자가 지목 코드인 경우 이를 제거한다.
+   */
+  source = source.replace(
+    /(\d+(?:-\d+)?)\s+[가-힣]$/u,
+    "$1"
+  );
+
+  result.add(source);
+  result.add(normalize(source));
 
   const match =
     /(\d+(?:-\d+)?)\s*(?:번지)?$/u.exec(source);
@@ -79,6 +90,9 @@ function normalizeJibunVariants(jibun) {
       result.add(prefix + number + "번지");
       result.add(prefix + " " + number);
       result.add(prefix + number);
+    } else {
+      result.add(number);
+      result.add(number + "번지");
     }
   }
 
