@@ -773,6 +773,136 @@ export async function getNoticeAttachmentsForPnu(
 }
 
 
+async function analyzeNoticeRecord({
+  pnu,
+  jibun,
+  notice,
+  download = true,
+  saveMatchedImages = false,
+  imageOutputDir = null,
+  enableOcrFallback = true,
+  ocrMaxPages = 24,
+  ocrScale = 2.5
+}) {
+  let source = await getNoticeDetail(
+    notice
+  );
+
+  let attachments = source.attachments;
+
+  if (
+    download &&
+    attachments.length > 0
+  ) {
+    attachments =
+      await storeAllAttachments(
+        notice.notice_code,
+        attachments
+      );
+  }
+
+  source = {
+    ...source,
+    attachments
+  };
+
+  const firstAttachmentPath =
+    source.attachments.find(
+      attachment =>
+        attachment.filePath
+    )?.filePath || null;
+
+  const noticeDir =
+    firstAttachmentPath
+      ? path.dirname(
+          firstAttachmentPath
+        )
+      : null;
+
+  const evidenceImageDir =
+    imageOutputDir ||
+    (
+      noticeDir
+        ? path.join(
+            noticeDir,
+            "evidence_images"
+          )
+        : null
+    );
+
+  const applicability =
+    await analyzeTextApplicability({
+      pnu,
+      jibun,
+      notice:
+        source.notice,
+      attachments:
+        source.attachments,
+      noticeDir,
+      enableOcrFallback,
+      ocrMaxPages,
+      ocrScale,
+      saveMatchedImages,
+      imageOutputDir:
+        evidenceImageDir
+    });
+
+  const sourcePackage =
+    buildSourcePackage({
+      noticeCode:
+        notice.notice_code,
+      attachments:
+        source.attachments
+    });
+
+  return {
+    success:
+      true,
+
+    pnu,
+    jibun,
+
+    targetValidation:
+      null,
+
+    notice: {
+      notice_code:
+        source.notice.notice_code,
+
+      notice_no:
+        source.notice.notice_no,
+
+      notice_date:
+        source.notice.notice_date,
+
+      organ_nm:
+        source.notice.organ_nm,
+
+      title:
+        source.notice.title,
+
+      org_cd:
+        source.notice.org_cd,
+
+      ucode:
+        source.notice.ucode,
+
+      ucode_nm:
+        source.notice.ucode_nm,
+
+      wtnnc_cd:
+        source.notice.wtnnc_cd
+    },
+
+    applicability,
+
+    sourcePackage,
+
+    attachments:
+      source.attachments
+  };
+}
+
 export async function analyzeUrbanPlan(
   {
     pnu,
@@ -787,6 +917,70 @@ export async function analyzeUrbanPlan(
     version,
     server
   }
+) {
+  if (!pnu) {
+    throw new Error(
+      "analyze_urban_plan requires pnu."
+    );
+  }
+
+  if (!jibun) {
+    throw new Error(
+      "analyze_urban_plan requires jibun for parcel evidence location."
+    );
+  }
+
+  const targetValidation =
+    validatePnuJibunConsistency(
+      pnu,
+      jibun
+    );
+
+  if (!noticeCode) {
+    throw new Error(
+      "analyze_urban_plan requires noticeCode. First use resolve_urban_plan or get_district_plan_history to identify the notice."
+    );
+  }
+
+  const resolved =
+    await resolveUrbanPlan({
+      pnu,
+      version,
+      server
+    });
+
+  const notice =
+    resolved.notices.find(
+      item =>
+        item.notice_code ===
+        noticeCode
+    );
+
+  if (!notice) {
+    throw new Error(
+      `Notice code not found for PNU ${pnu}: ${noticeCode}`
+    );
+  }
+
+  const result =
+    await analyzeNoticeRecord({
+      pnu,
+      jibun,
+      notice,
+      download,
+      saveMatchedImages,
+      enableOcrFallback,
+      ocrMaxPages,
+      ocrScale
+    });
+
+  return {
+    ...result,
+    targetValidation
+  };
+}
+
+
 ) {
   if (!pnu) {
     throw new Error(
@@ -919,5 +1113,317 @@ export async function analyzeUrbanPlan(
      */
     attachments:
       source.attachments
+  };
+}
+
+export async function analyzeDistrictPlanHistory({
+  pnu,
+  jibun,
+  download = true,
+  saveMatchedImages = false,
+  enableOcrFallback = true,
+  ocrMaxPages = 24,
+  ocrScale = 2.5,
+  stopOnUsableEvidence = true,
+  maxRetryPages = 64,
+  version,
+  server
+}) {
+  if (!pnu) {
+    throw new Error(
+      "analyze_district_plan_history requires pnu."
+    );
+  }
+
+  if (!jibun) {
+    throw new Error(
+      "analyze_district_plan_history requires jibun."
+    );
+  }
+
+  const targetValidation =
+    validatePnuJibunConsistency(
+      pnu,
+      jibun
+    );
+
+  const resolved =
+    await resolveUrbanPlan({
+      pnu,
+      version,
+      server
+    });
+
+  const history =
+    Array.isArray(
+      resolved.notices
+    )
+      ? resolved.notices
+      : [];
+
+  const noticeDetails = [];
+
+  const hasUsableEvidence =
+    detail =>
+      detail?.success === true &&
+      Number(
+        detail
+          ?.applicability
+          ?.matchCount || 0
+      ) > 0 &&
+      Number(
+        detail
+          ?.sourcePackage
+          ?.preservedOriginalCount || 0
+      ) > 0;
+
+  const getRetryMaxPages =
+    detail => {
+      if (
+        !hasUsableEvidence ||
+        Number(
+          detail
+            ?.sourcePackage
+            ?.preservedOriginalCount || 0
+        ) <= 0
+      ) {
+        return null;
+      }
+
+      const skippedReasons =
+        Array.isArray(
+          detail
+            ?.applicability
+            ?.ocrSummary
+            ?.skippedReasons
+        )
+          ? detail
+              .applicability
+              .ocrSummary
+              .skippedReasons
+          : [];
+
+      if (
+        !skippedReasons.includes(
+          "large_pdf_over_page_limit"
+        )
+      ) {
+        return null;
+      }
+
+      const pageCounts =
+        Array.isArray(
+          detail
+            ?.applicability
+            ?.sources
+        )
+          ? detail
+              .applicability
+              .sources
+              .map(
+                source =>
+                  Number(
+                    source?.pageCount || 0
+                  )
+              )
+              .filter(
+                value =>
+                  Number.isInteger(
+                    value
+                  ) &&
+                  value >
+                    ocrMaxPages &&
+                  value <=
+                    maxRetryPages
+              )
+          : [];
+
+      return pageCounts.length > 0
+        ? Math.max(
+            ...pageCounts
+          )
+        : null;
+    };
+
+  for (
+    const notice
+    of history
+  ) {
+    if (
+      !notice?.notice_code
+    ) {
+      continue;
+    }
+
+    try {
+      let detail =
+        await analyzeNoticeRecord({
+          pnu,
+          jibun,
+          notice,
+          download,
+          saveMatchedImages,
+          enableOcrFallback,
+          ocrMaxPages,
+          ocrScale
+        });
+
+      let ocrRetry = null;
+
+      const retryMaxPages =
+        getRetryMaxPages(
+          detail
+        );
+
+      if (
+        !hasUsableEvidence(
+          detail
+        ) &&
+        retryMaxPages
+      ) {
+        ocrRetry = {
+          attempted:
+            true,
+          reason:
+            "large_pdf_over_page_limit",
+          initialMaxPages:
+            ocrMaxPages,
+          retryMaxPages
+        };
+
+        detail =
+          await analyzeNoticeRecord({
+            pnu,
+            jibun,
+            notice,
+            download,
+            saveMatchedImages,
+            enableOcrFallback,
+            ocrMaxPages:
+              retryMaxPages,
+            ocrScale
+          });
+      }
+
+      noticeDetails.push({
+        noticeCode:
+          notice.notice_code,
+        notice,
+        detail,
+        ocrRetry
+      });
+
+      if (
+        stopOnUsableEvidence &&
+        hasUsableEvidence(
+          detail
+        )
+      ) {
+        break;
+      }
+    } catch (error) {
+      noticeDetails.push({
+        noticeCode:
+          notice.notice_code,
+        notice,
+        error:
+          error?.message ||
+          String(error)
+      });
+    }
+  }
+
+  const evidenceResults =
+    noticeDetails
+      .map(
+        item =>
+          item?.detail
+      )
+      .filter(
+        detail =>
+          hasUsableEvidence(
+            detail
+          )
+      );
+
+  const analysisFailures =
+    noticeDetails
+      .filter(
+        item =>
+          !hasUsableEvidence(
+            item?.detail
+          )
+      )
+      .map(
+        item => ({
+          noticeCode:
+            item.noticeCode,
+          error:
+            item?.detail?.error ||
+            item?.detail
+              ?.applicability
+              ?.status ||
+            "URBAN_ANALYSIS_NO_USABLE_EVIDENCE",
+          message:
+            item?.detail?.message ||
+            null
+        })
+      );
+
+  const analysisAttemptedCount =
+    noticeDetails.length;
+
+  const analysisSuccessCount =
+    evidenceResults.length;
+
+  let analysisStatus =
+    "NOT_RUN";
+
+  if (
+    analysisAttemptedCount > 0
+  ) {
+    if (
+      analysisSuccessCount ===
+      analysisAttemptedCount
+    ) {
+      analysisStatus =
+        "SUCCESS";
+    } else if (
+      analysisSuccessCount > 0
+    ) {
+      analysisStatus =
+        "PARTIAL";
+    } else {
+      analysisStatus =
+        "FAILED";
+    }
+  }
+
+  return {
+    success:
+      true,
+
+    pnu,
+    jibun,
+
+    targetValidation,
+
+    history,
+
+    noticeDetails,
+
+    evidenceResults,
+
+    analysisFailures,
+
+    analysisAttemptedCount,
+
+    analysisSuccessCount,
+
+    analysisStatus,
+
+    stopOnUsableEvidence,
+
+    maxRetryPages
   };
 }
