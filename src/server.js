@@ -404,7 +404,7 @@ server.registerTool(
 );
 
 void serveStdio(
-  server
+  () => server
 );
 
 console.error(
