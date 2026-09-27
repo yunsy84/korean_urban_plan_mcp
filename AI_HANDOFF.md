@@ -2054,3 +2054,32 @@ OCR로 도면에서 글자가 발견되는 것만으로 공간 포함을 확정�
 이 변경의 목적은 OCR 기능을 새로 만드는 것이 아니라 **Land MCP가 넘긴 실제 지번 형식을 Urban MCP의 기존 Evidence 엔진이 그대로 이해하도록 만드는 것**과 초대형 PDF의 무분별한 OCR 재시도를 막는 것이다.
 
 회귀 테스트에는 `1116 대` → `백석동1116번지` 매칭 검증을 추가했다.
+## 2026-09-27 Agent System 연계 기준 추가
+
+현재 메인 통합 구조에서 korean_urban_plan_mcp의 역할은 Land MCP가 확인한 지구단위계획 필지를 보완하는 독립 Urban Plan 서브 MCP다.
+
+연결 계약은 다음과 같다.
+
+    korean_land_mcp
+       ↓
+    지구단위계획 존재
+       ↓
+    UrbanPlanAgent
+       ↓
+    korean_urban_plan_mcp
+
+Land MCP가 확인한 PNU/지번을 호출자가 전달하고, 이 MCP는 EUM의 도시계획 고시 이력·고시 상세·첨부 원자료·필지 Evidence를 반환한다.
+
+중요한 분리 원칙:
+
+- 용도지역과 지구단위계획은 서로 다른 데이터 축이다.
+- Urban MCP는 Land MCP의 용도지역을 변경하지 않는다.
+- Urban MCP는 법령 해석을 하지 않는다.
+- Agent가 Urban MCP의 고시/Evidence를 임의로 다시 선정·축소하지 않는다.
+- 특정 주소/PNU/고시번호를 코드에 하드코딩하지 않는다.
+
+현재 agent_system의 최신 AnswerAgent 보정은 Urban MCP 내부 동작을 변경하는 작업이 아니라, Land MCP에서 전달된 현재 용도지역을 법령 답변 단계에서 다른 용도지역으로 오인하지 않도록 하는 통합 계층의 보정이다.
+
+2026-09-27 실제 통합 실행 1/5에서 Land MCP는 PNU 4413310300111160000, 용도지역 준주거지역, 지구단위계획 존재를 반환했고 UrbanPlanAgent는 PNU를 받아 Urban MCP 연결 및 EUM 고시 이력 18건, 첨부자료 조회 2건까지 성공했다.
+
+나머지 최종 AnswerAgent 결과는 agent_system 쪽에서 계속 확인한다. Urban MCP 자체의 기존 원본 다운로드/OCR/Evidence 테스트 결과를 이 연계 작업 때문에 다시 구현하거나 축소하지 않는다.
