@@ -323,12 +323,22 @@ function makeParcelNumberVariants(
 
 
 function makeJibunVariants(jibun) {
-  const source = compact(jibun);
+  let source = compact(jibun);
   const variants = new Set();
 
   if (!source) {
     return [];
   }
+
+  /*
+   * korean_land_mcp의 parcel.jibun은
+   * "1116 대"처럼 지번 뒤에 지목 코드 1글자가 붙을 수 있다.
+   * 필지 증거 검색에서는 이 지목 코드를 제거한다.
+   */
+  source = source.replace(
+    /(\d+(?:-\d+)?)\s+[가-힣]$/u,
+    "$1"
+  );
 
   variants.add(source);
   variants.add(normalize(source));
@@ -345,6 +355,9 @@ function makeJibunVariants(jibun) {
       variants.add(prefix + " " + number);
       variants.add(prefix + number + "번지");
       variants.add(prefix + " " + number + "번지");
+    } else {
+      variants.add(number);
+      variants.add(number + "번지");
     }
   }
 
