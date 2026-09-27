@@ -87,8 +87,14 @@ function extractJibunParcel(
       .normalize("NFKC")
       .trim();
 
+  /*
+   * korean_land_mcp의 parcel.jibun은
+   * "1116 대"처럼 지번 뒤에 1자리 지목 코드가 붙을 수 있다.
+   * 필지번호 검증에서는 이 지목 코드는 무시하고
+   * 숫자/부번만 PNU와 비교한다.
+   */
   const match =
-    /(\d+)\s*(?:-\s*(\d+))?\s*(?:번지)?$/u.exec(
+    /^(?:산\s*)?(\d+)\s*(?:-\s*(\d+))?\s*(?:번지)?\s*([가-힣])?$/u.exec(
       source
     );
 
