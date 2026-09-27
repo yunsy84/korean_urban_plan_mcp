@@ -174,6 +174,74 @@ test("parcel evidence matches spaced and unspaced jibun notation", async () => {
   );
 });
 
+test("parcel evidence normalizes Land jibun with trailing jimok code", async () => {
+  const dir =
+    await fs.mkdtemp(
+      path.join(
+        os.tmpdir(),
+        "urban-plan-land-jibun-"
+      )
+    );
+
+  const filePath =
+    path.join(
+      dir,
+      "source.txt"
+    );
+
+  await fs.writeFile(
+    filePath,
+    "가구 및 획지 조서: 백석동1116번지 |16,028.5|16,028.5",
+    "utf8"
+  );
+
+  const result =
+    await analyzeTextApplicability({
+      pnu:
+        "4413310300111160000",
+      jibun:
+        "1116 대",
+      notice: {
+        notice_code:
+          "TEST-LAND-JIBUN",
+        title:
+          "",
+        content:
+          ""
+      },
+      attachments: [
+        {
+          filePath,
+          displayName:
+            "source.txt",
+          kind:
+            "text"
+        }
+      ],
+      noticeDir:
+        dir,
+      enableOcrFallback:
+        false
+    });
+
+  assert.equal(
+    result.status,
+    "CONFIRMED_BY_TEXT"
+  );
+
+  assert.equal(
+    result.matchedSources[0].matchMethod,
+    "native_text"
+  );
+
+  assert.equal(
+    result.matchedSources[0].matchedVariants.includes(
+      "1116"
+    ),
+    true
+  );
+});
+
 test("source analysis failure is isolated to the failed attachment", async () => {
   const result =
     await analyzeTextApplicability({
