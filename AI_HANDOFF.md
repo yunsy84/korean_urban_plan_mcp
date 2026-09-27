@@ -2054,3 +2054,34 @@ OCR로 도면에서 글자가 발견되는 것만으로 공간 포함을 확정�
 이 변경의 목적은 OCR 기능을 새로 만드는 것이 아니라 **Land MCP가 넘긴 실제 지번 형식을 Urban MCP의 기존 Evidence 엔진이 그대로 이해하도록 만드는 것**과 초대형 PDF의 무분별한 OCR 재시도를 막는 것이다.
 
 회귀 테스트에는 `1116 대` → `백석동1116번지` 매칭 검증을 추가했다.
+
+# 38. 2026-09-27 Land → Urban 통합 책임 분리
+
+최근 통합 실행에서 Agent가 PNU 고시 이력을 받은 후 고시마다 analyze_urban_plan()을 반복 호출하는 구조를 확인했다. 이 방식은 Agent가 도메인 분석을 직접 통제하고, 고시마다 EUM resolve가 다시 수행될 수 있어 불필요한 지연이 발생할 수 있다.
+
+따라서 현재 기준 구조는 다음과 같다.
+
+```text
+LandUseAgent
+  ↓ PNU + jibun
+UrbanPlanAgent
+  ↓
+analyze_district_plan_history
+  ↓
+EUM PNU 고시 이력 1회 조회
+  ↓
+동일 resolve 결과의 notice record를 순서대로 사용
+  ↓
+detail → attachment → source applicability → OCR
+  ↓
+Urban MCP 결과 반환
+```
+
+`analyze_district_plan_history`는 기존 `analyze_urban_plan`의 원자료/Evidence 처리 로직을 공유하면서, 이미 조회한 notice record를 `getNoticeDetail(notice)`에 직접 전달한다. 따라서 배치 경로에서 고시마다 PNU 전체 resolve를 반복하지 않는다.
+
+`UrbanPlanAgent`는 지구단위계획 여부를 보고 Urban MCP를 호출하는 라우터 역할만 수행한다. 고시 재선정, Evidence 재판정, OCR 재시도는 Agent에서 수행하지 않는다.
+
+자동 OCR 재시도는 Urban MCP 내부에서 실제 PDF pageCount를 확인하고 기본 64페이지 이내에서만 수행한다. 64페이지를 초과하는 PDF는 배치 경로에서 자동 전체 OCR하지 않는다.
+
+`analyze_urban_plan` 단일 도구는 기존 호환성을 위해 유지한다.
+
