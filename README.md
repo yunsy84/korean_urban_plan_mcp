@@ -799,13 +799,29 @@ urban-plan-source-evidence
 
 ## 원자료 다운로드 경로
 
-고시 첨부 원자료는 `config/urban_plan.config.json`의 `downloadRoot`를 사용하며 현재 값은 `downloads`이다. 프로젝트 루트 기준 실제 저장 위치는:
+standalone `korean_urban_plan_mcp` 실행에서는 `config/urban_plan.config.json`의 `downloadRoot`를 사용하며 기본값은 `downloads`이다.
+
+메인 `agent_system`에서 MCP를 실행할 때는 `URBAN_PLAN_DOWNLOAD_ROOT` 환경변수를 전달하고, 현재 Agent System의 ReportAgent 기본 출력 폴더인:
 
 ```
-C:\\AI_BOT_SEO\\korean_urban_plan_mcp\\downloads
+C:\\AI_BOT_SEO\\agent_system\\reports
 ```
 
-고시별로 `downloads/notice/<notice_code>/` 아래에 원자료가 저장된다. 검증은 캐시된 파일을 가정하지 않고 **PNU → 고시 → detail → 첨부 다운로드 → source_applicability evidence** 순서로 실제 원자료를 확보한 뒤 수행한다.
+를 원자료 다운로드 루트로 사용한다.
+
+고시별 파일은 다음처럼 저장된다:
+
+```
+reports/
+└─ notice/
+   └─ <notice_code>/
+      ├─ 원본 첨부자료
+      └─ evidence_images/
+```
+
+따라서 Agent System 연동 실행에서는 **보고서 HTML/JSON과 Urban 원자료가 동일한 `agent_system\\reports` 아래에 함께 보존**된다. standalone MCP 실행의 기존 `downloads` 동작은 그대로 유지한다.
+
+검증은 캐시된 파일을 가정하지 않고 **PNU → 고시 → detail → 첨부 다운로드 → source_applicability evidence** 순서로 실제 원자료를 확보한 뒤 수행한다.
 
 
 ---
